@@ -15,11 +15,11 @@ dependencies = [
     "pydantic>=2.0,<3.0",
     "pydantic-settings>=2.0,<3.0",
     "httpx>=0.25.0,<1.0",
-    "ollama>=0.1.0",
-    "structlog>=24.1.0",
-    "python-dotenv>=1.0.0",
-    "pyyaml>=6.0",
-    "pytz>=2024.1",
+    "ollama>=0.3.0,<1.0",
+    "structlog>=24.1.0,<25.0",
+    "python-dotenv>=1.0.0,<2.0",
+    "pyyaml>=6.0,<7.0",
+    "pytz>=2024.1,<2026.0",
 ]
 
 [project.optional-dependencies]
@@ -33,7 +33,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["kal_predict"]
+packages = ["kal_predict", "kal_predict.adapters", "kal_predict.core", "kal_predict.pipeline", "kal_predict.utils"]
 package-dir = {"" = "src"}
 
 [tool.black]
