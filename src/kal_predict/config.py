@@ -40,8 +40,8 @@ class KalshiConfig(BaseSettings):
         try:
             with open(self.private_key_path, 'r') as f:
                 return f.read()
-        except FileNotFoundError:
-            logger.warning(f"Private key not found at {self.private_key_path}")
+        except OSError as e:
+            logger.warning(f"Cannot load private key at {self.private_key_path}: {e}")
             return None
 
 
@@ -68,11 +68,11 @@ class ExecutionConfig(BaseSettings):
     """Trading execution configuration."""
 
     mode: str = Field(default="paper")  # "paper" or "live" (live only after Gate F)
-    paper_trading_enabled: bool = Field(default=True)
-    paper_capital_usd: float = Field(default=10000.0)
-    paper_max_position_usd: float = Field(default=1000.0)
+    trading_enabled: bool = Field(default=True)
+    capital_usd: float = Field(default=10000.0)
+    max_position_usd: float = Field(default=1000.0)
 
-    model_config = ConfigDict(env_prefix="")
+    model_config = ConfigDict(env_prefix="EXECUTION_")
 
 
 class RiskGateConfig(BaseSettings):
@@ -105,7 +105,9 @@ class AppConfig(BaseSettings):
     risk_gate: RiskGateConfig = Field(default_factory=RiskGateConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
-    model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8")
+    _env_file = Path(__file__).parent.parent.parent / ".env"
+
+    model_config = ConfigDict(env_file=_env_file, env_file_encoding="utf-8")
 
 
 def load_config() -> AppConfig:
@@ -113,7 +115,9 @@ def load_config() -> AppConfig:
     config = AppConfig()
     logger.info(
         "Configuration loaded",
-        execution_mode=config.execution.mode,
-        kalshi_available=config.kalshi.is_available,
+        extra={
+            "execution_mode": config.execution.mode,
+            "kalshi_available": config.kalshi.is_available,
+        }
     )
     return config

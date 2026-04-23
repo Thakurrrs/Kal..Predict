@@ -1,5 +1,3 @@
-import os
-from pathlib import Path
 import pytest
 from kal_predict.config import AppConfig, OllamaConfig, KalshiConfig, load_config
 
