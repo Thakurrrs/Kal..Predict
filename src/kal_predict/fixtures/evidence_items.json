@@ -1,0 +1,37 @@
+{
+  "items": [
+    {
+      "evidence_id": "ev-nws-001",
+      "source": "NWS",
+      "url": "https://api.weather.gov/gridpoints/LOT/94,95/forecast",
+      "retrieved_at": "2026-04-24T07:30:00Z",
+      "event_time": "2026-04-24T07:00:00Z",
+      "claim": "Morning forecast: high of 72°F, rising to 75°F by noon",
+      "confidence_hint": 0.85,
+      "reliability_score": 0.95,
+      "schema_version": 1
+    },
+    {
+      "evidence_id": "ev-nws-002",
+      "source": "NWS",
+      "url": "https://api.weather.gov/gridpoints/LOT/94,95/forecast",
+      "retrieved_at": "2026-04-24T11:00:00Z",
+      "event_time": "2026-04-24T11:00:00Z",
+      "claim": "Current conditions: 74°F and rising, forecast high 76°F",
+      "confidence_hint": 0.92,
+      "reliability_score": 0.97,
+      "schema_version": 1
+    },
+    {
+      "evidence_id": "ev-nws-003",
+      "source": "NWS",
+      "url": "https://api.weather.gov/gridpoints/LOT/94,95/forecast",
+      "retrieved_at": "2026-04-24T22:00:00Z",
+      "event_time": "2026-04-24T22:00:00Z",
+      "claim": "Final observation: peak temperature reached 75.2°F at 15:45 local time",
+      "confidence_hint": 0.99,
+      "reliability_score": 0.99,
+      "schema_version": 1
+    }
+  ]
+}

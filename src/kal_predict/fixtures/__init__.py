@@ -1,10 +1,10 @@
 """Test fixtures for market data, evidence, and replay testing.
 
-NOTE: This module re-exports from kal_predict.fixtures for backward compatibility.
-New code should import directly from kal_predict.fixtures.
+This module provides access to pre-recorded market snapshots, evidence items,
+and settlement data used in replay harness, integration tests, and mock providers.
 """
 
-from kal_predict.fixtures import (
+from kal_predict.fixtures.replay_sample import (
     get_settlement_outcome,
     load_evidence_items,
     load_market_snapshots,

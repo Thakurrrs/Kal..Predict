@@ -3,9 +3,9 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
+from kal_predict.fixtures.replay_sample import load_market_snapshots
 from kal_predict.logging_setup import get_logger
 from kal_predict.models import MarketSnapshot
-from tests.fixtures.replay_sample import load_market_snapshots
 
 logger = get_logger(__name__)
 

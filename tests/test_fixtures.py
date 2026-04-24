@@ -5,12 +5,12 @@ Validates that pre-recorded fixtures load correctly and conform to data contract
 
 import pytest
 
-from kal_predict.models import EvidenceItem, MarketSnapshot
-from tests.fixtures.replay_sample import (
+from kal_predict.fixtures import (
     get_settlement_outcome,
     load_evidence_items,
     load_market_snapshots,
 )
+from kal_predict.models import EvidenceItem, MarketSnapshot
 
 
 class TestLoadMarketSnapshots:
