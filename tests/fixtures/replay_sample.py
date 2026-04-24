@@ -5,13 +5,17 @@ for use in replay harness and integration tests.
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Optional
 
-from kal_predict.models import (  # type: ignore[import-untyped]
-    EvidenceItem,
-    MarketSnapshot,
-)
+from pydantic import ValidationError
+
+from kal_predict.models import EvidenceItem, MarketSnapshot
+from kal_predict.trace import get_trace_id
+from kal_predict.utils.errors import DataValidationError
+
+logger = logging.getLogger(__name__)
 
 
 def _get_fixtures_dir() -> Path:
@@ -26,16 +30,43 @@ def load_market_snapshots() -> tuple[list[MarketSnapshot], dict[str, Any]]:
         Tuple of (snapshots list, settlement_data dict)
         - snapshots: List of MarketSnapshot objects in chronological order
         - settlement_data: Dict mapping market_id to settlement outcome
+
+    Raises:
+        DataValidationError: If JSON is malformed or MarketSnapshot validation fails
     """
+    trace_id = get_trace_id()
     fixtures_path = _get_fixtures_dir() / "market_data.json"
 
-    with open(fixtures_path, "r") as f:
-        data = json.load(f)
+    try:
+        with open(fixtures_path, "r") as f:
+            data = json.load(f)  # Can raise json.JSONDecodeError
 
-    snapshots = [MarketSnapshot(**snap) for snap in data["snapshots"]]
-    settlement_data = data.get("settlement", {})
+        snapshots = [MarketSnapshot(**snap) for snap in data["snapshots"]]  # Can raise ValidationError
+        settlement_data = data.get("settlement", {})
 
-    return snapshots, settlement_data
+        return snapshots, settlement_data
+    except json.JSONDecodeError as e:
+        error_msg = f"Failed to parse market_data.json: {e}"
+        logger.error(
+            error_msg,
+            extra={
+                "trace_id": trace_id,
+                "event_type": "data_load_error",
+                "actor": "fixture_loader",
+            },
+        )
+        raise DataValidationError(error_msg) from e
+    except ValidationError as e:
+        error_msg = f"Failed to validate MarketSnapshot: {e}"
+        logger.error(
+            error_msg,
+            extra={
+                "trace_id": trace_id,
+                "event_type": "data_load_error",
+                "actor": "fixture_loader",
+            },
+        )
+        raise DataValidationError(error_msg) from e
 
 
 def load_evidence_items() -> list[EvidenceItem]:
@@ -43,15 +74,42 @@ def load_evidence_items() -> list[EvidenceItem]:
 
     Returns:
         List of EvidenceItem objects in chronological order
+
+    Raises:
+        DataValidationError: If JSON is malformed or EvidenceItem validation fails
     """
+    trace_id = get_trace_id()
     fixtures_path = _get_fixtures_dir() / "evidence_items.json"
 
-    with open(fixtures_path, "r") as f:
-        data = json.load(f)
+    try:
+        with open(fixtures_path, "r") as f:
+            data = json.load(f)  # Can raise json.JSONDecodeError
 
-    evidence_items = [EvidenceItem(**item) for item in data["items"]]
+        evidence_items = [EvidenceItem(**item) for item in data["items"]]  # Can raise ValidationError
 
-    return evidence_items
+        return evidence_items
+    except json.JSONDecodeError as e:
+        error_msg = f"Failed to parse evidence_items.json: {e}"
+        logger.error(
+            error_msg,
+            extra={
+                "trace_id": trace_id,
+                "event_type": "data_load_error",
+                "actor": "fixture_loader",
+            },
+        )
+        raise DataValidationError(error_msg) from e
+    except ValidationError as e:
+        error_msg = f"Failed to validate EvidenceItem: {e}"
+        logger.error(
+            error_msg,
+            extra={
+                "trace_id": trace_id,
+                "event_type": "data_load_error",
+                "actor": "fixture_loader",
+            },
+        )
+        raise DataValidationError(error_msg) from e
 
 
 def get_settlement_outcome(market_id: str) -> Optional[dict[str, Any]]:
