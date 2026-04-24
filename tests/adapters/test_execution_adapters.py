@@ -193,6 +193,26 @@ class TestPaperExecutionProvider:
 
         assert position is None
 
+    async def test_paper_execution_invalid_side(self, paper_provider):
+        """Verify paper provider rejects invalid trade side."""
+        now = datetime.now(timezone.utc).isoformat()
+        invalid_intent = TradeIntent(
+            intent_id="intent-invalid",
+            market_id="WEATHER-24-WV-RAIN-20240624",
+            side="INVALID",  # Invalid side
+            max_price=0.60,
+            size=10,
+            mode="paper",
+            created_at=now,
+            trace_id="trace-invalid",
+        )
+
+        result = await paper_provider.execute_trade(
+            invalid_intent, market_bid=0.55, market_ask=0.65
+        )
+
+        assert result is None
+
 
 @pytest.mark.asyncio
 class TestMockExecutionProvider:
