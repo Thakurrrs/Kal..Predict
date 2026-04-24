@@ -1,5 +1,4 @@
-import pytest
-from kal_predict.config import AppConfig, OllamaConfig, KalshiConfig, load_config
+from kal_predict.config import KalshiConfig, OllamaConfig, load_config
 
 
 def test_ollama_config_from_env(monkeypatch):

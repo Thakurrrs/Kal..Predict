@@ -1,15 +1,15 @@
 """Utilities package."""
 
 from .errors import (
-    KalPredictError,
     ConfigError,
     DataValidationError,
-    ProviderError,
-    MarketDataError,
-    ExecutionError,
-    RiskGateViolation,
     DecisionEngineError,
+    ExecutionError,
+    KalPredictError,
+    MarketDataError,
     OrchestratorError,
+    ProviderError,
+    RiskGateViolation,
 )
 
 __all__ = [

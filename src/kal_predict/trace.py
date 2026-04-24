@@ -1,7 +1,7 @@
 """Trace ID generation and correlation context management."""
 
-import uuid
 import contextvars
+import uuid
 from typing import Optional
 
 # Context variable to store the current trace ID

@@ -1,10 +1,11 @@
 """Structured logging initialization with trace ID injection."""
 
+import json
 import logging
 import logging.config
 from pathlib import Path
 from typing import Optional
-import json
+
 from kal_predict.trace import get_trace_id
 
 

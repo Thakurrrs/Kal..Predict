@@ -7,12 +7,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Kal..Predict** is an autonomous predictive trading agent for Kalshi (CFTC-regulated prediction markets). The goal is 60-70% forecast accuracy on weather markets through Bayesian probability updates combined with real-time evidence ingestion.
 
 **Key Context:**
-- Early stage (v0.1.0), currently in SDLC Build phase (Gate D - Verification Ready CLEARED)
+- Early stage (v0.1.0), currently in SDLC Build/Release-prep phase
 - Runs on Apple Silicon (MacBook Pro M5 Pro) with local Ollama LLM inference
 - **Free-tier only** — no paid APIs (NWS, SearXNG, FRED all free)
 - **Pre-credential mode until Saturday** — all tests use mock Kalshi adapters until API credentials arrive
 - **SDLC-first development** — documentation gates ALL implementation (no code without approved docs)
-- **Gate D cleared 2026-04-23** — Replay harness and Brier/calibration criteria locked. Ready for Gate E (Paper Release)
+- **Gate D cleared 2026-04-23** — Replay harness and Brier/calibration criteria locked.
+- **Gate E implementation complete in code** — formal gate sign-off remains a documentation/evidence decision and must be recorded in governance artifacts.
 
 ## SDLC Development Workflow
 
@@ -26,7 +27,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **B** | ✅ Approved | Architecture (ADRs, data contracts, threat model) |
 | **C** | ✅ Approved | Engineering (API specs, logging standards, error policies) |
 | **D** | ✅ Approved | Verification (test strategy, replay harness, pass criteria) |
-| **E** | 🏗️ In Progress | Paper Release (paper mode end-to-end, risk gates enforced) |
+| **E** | ⚙️ Implemented (pending formal sign-off record) | Paper Release (paper mode end-to-end, risk gates enforced) |
 | **F** | ⏳ Pending | Limited Live (paper metrics stable, founder sign-off) |
 
 **Mandatory rule:** No code change proceeds until gate-critical docs are approved and status-marked in `docs/`.
@@ -49,10 +50,36 @@ Per ADR-0001 (`docs/architecture/adr-0001-system-boundaries.md`):
 
 ## Quick Start
 
+## Operator Quickstart (Copy/Paste)
+
+```bash
+# 0) From repo root
+cd /Users/rasalghul/Documents/LeagueOfAssassins/Kal..Predict
+
+# 1) Backend API (Terminal A)
+source venv/bin/activate
+uvicorn kal_predict.api.app:app --host 127.0.0.1 --port 8030 --reload
+
+# 2) UI with backend proxy (Terminal B)
+API_PROXY_TARGET="http://127.0.0.1:8030" WATCHPACK_POLLING=true \
+  npm --prefix "/Users/rasalghul/Documents/LeagueOfAssassins/Kal..Predict/ui" run dev -- \
+  --hostname 127.0.0.1 --port 3040
+
+# 3) Health checks (Terminal C, optional)
+curl -s "http://127.0.0.1:8030/api/ui/health"
+curl -s "http://127.0.0.1:8030/api/trial/markets?limit=1"
+
+# 4) Open in browser
+# http://127.0.0.1:3040
+# http://127.0.0.1:3040/trial
+```
+
+If `3040` is busy, change to `3041` in the UI command.
+
 ### Installation
 
 ```bash
-# Install Python 3.11+ and Ollama first
+# Install Python 3.9+ and Ollama first
 
 cd /Users/rasalghul/Documents/LeagueOfAssassins/Kal..Predict
 
@@ -99,6 +126,19 @@ mypy src/                  # Type check (strict mode)
 black src/ tests/ && ruff check src/ tests/ && mypy src/ && pytest tests/
 ```
 
+### UI Commands
+
+```bash
+# Run UI tests
+npm --prefix "/Users/rasalghul/Documents/LeagueOfAssassins/Kal..Predict/ui" run test
+
+# Build UI
+npm --prefix "/Users/rasalghul/Documents/LeagueOfAssassins/Kal..Predict/ui" run build
+
+# Start UI dev server
+API_PROXY_TARGET="http://127.0.0.1:8030" npm --prefix "/Users/rasalghul/Documents/LeagueOfAssassins/Kal..Predict/ui" run dev -- --hostname 127.0.0.1 --port 3040
+```
+
 ## Project Structure
 
 ```
@@ -115,6 +155,12 @@ src/kal_predict/
 │   └── decision.py         # Decision engine: Bayesian logic, gap calc, risk gates
 ├── pipeline/
 │   └── orchestrator.py     # Heartbeat loop, Brain/Hands, state recovery
+├── api/
+│   ├── app.py              # FastAPI app for read-only UI endpoints
+│   ├── routes.py           # /api/ui/* read-only routes + /api/trial/* paper-only actions
+│   └── state.py            # Dependency wiring for UI data service
+├── services/
+│   └── ui_data.py          # Aggregates runtime artifacts for UI API payloads
 └── utils/
     ├── errors.py           # Custom exception hierarchy
     └── (shared utilities)
@@ -140,6 +186,12 @@ docs/
 ├── operations/            # Runbooks, incident response
 ├── compliance/            # Audit logging, change mgmt
 └── superpowers/plans/     # Implementation plans (from subagent-driven development)
+
+ui/
+├── src/app/                # Next.js app router pages
+├── src/components/         # Dashboard nav, cards, status, theme toggle
+├── src/lib/api.ts          # Typed client for /api/ui and /api/trial endpoints
+└── vitest.config.ts        # UI test configuration
 
 .env.example               # Config template (tracked)
 .env                       # Secrets (git-ignored)
@@ -196,6 +248,17 @@ Until Saturday when Kalshi API credentials arrive:
 - Allows tests and pre-credential work to use mocks without touching real APIs
 - See `docs/engineering/api-spec.md` for provider contracts
 
+### 7. UI and Trial Contract
+
+- `/api/ui/*` is strictly read-only in this phase.
+- Backend endpoints under `/api/ui/*` accept GET only; mutation methods return 405.
+- `/api/trial/*` allows paper-only actions (manual bet, auto bet, scenario batch run).
+- Live trading controls remain out of scope and blocked.
+- Source docs:
+  - `docs/architecture/adr-0002-ui-readonly-dashboard.md`
+  - `docs/engineering/ui-api-spec.md`
+  - `docs/quality/ui-test-strategy.md`
+
 ## Testing Strategy
 
 Per `docs/quality/test-strategy.md`:
@@ -229,6 +292,9 @@ pytest tests/ -v --cov=src/kal_predict --cov-report=term-missing
 
 # Watch mode (with pytest-watch, if installed)
 ptw tests/
+
+# UI tests
+npm --prefix "/Users/rasalghul/Documents/LeagueOfAssassins/Kal..Predict/ui" run test
 ```
 
 ## Documentation Standards
@@ -306,6 +372,7 @@ git commit -m "feat: add new decision gate for position sizing"
 - Review `logs/kal_predict.log` (JSON format, one event per line)
 - Check daily anomaly report (error counts, decision spikes, stale data alerts)
 - Monitor Brier score drift over time (per audit logging standard)
+- Review read-only dashboard health and alert panels.
 
 ### Saturday Credential Onboarding (Gate C → Live Prep)
 
@@ -315,6 +382,14 @@ When Kalshi credentials arrive:
 3. Run credential smoke tests (check auth, signed requests, rate limits)
 4. Keep `EXECUTION_MODE=paper` until Gate F approval
 5. Monitor real market data freshness and decision quality
+
+### UI Runtime Notes
+
+- Preferred local UI URL: `http://127.0.0.1:3040` (or fallback port if in use).
+- If Next.js dev server shows broken chunks/404/500 with watcher errors:
+  - Start UI with polling mode:
+    - `API_PROXY_TARGET="http://127.0.0.1:8030" WATCHPACK_POLLING=true npm --prefix "/Users/rasalghul/Documents/LeagueOfAssassins/Kal..Predict/ui" run dev -- --hostname 127.0.0.1 --port 3041`
+  - Confirm backend health endpoint: `http://127.0.0.1:8030/api/ui/health`
 
 ### Kill Switch (Emergency)
 

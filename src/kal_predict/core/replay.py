@@ -7,6 +7,7 @@ from kal_predict.adapters.market import MarketDataProvider
 from kal_predict.config import AppConfig
 from kal_predict.core.decision import DecisionEngine
 from kal_predict.logging_setup import get_logger
+from kal_predict.services.inference import InferenceService
 from kal_predict.trace import get_trace_id
 
 logger = get_logger(__name__)
@@ -117,6 +118,7 @@ class ReplaySimulator:
         config: AppConfig,
         decision_engine: DecisionEngine,
         market_provider: MarketDataProvider,
+        inference_service: Optional[InferenceService] = None,
     ) -> None:
         """Initialize replay simulator.
 
@@ -129,6 +131,7 @@ class ReplaySimulator:
         self.decision_engine = decision_engine
         self.market_provider = market_provider
         self.brier_calculator = BrierScoreCalculator()
+        self.inference_service = inference_service
 
         logger.info(
             "ReplaySimulator initialized",
@@ -213,9 +216,16 @@ class ReplaySimulator:
             # Compute market-implied probability (mid-price of YES)
             market_price = (snapshot.yes_bid + snapshot.yes_ask) / 2.0
 
-            # Deterministic forecast: market price + 0.05, clamped to [0, 1]
-            # This is a simple heuristic for testing; in production, use LLM inference
-            simulated_forecast = min(1.0, max(0.0, market_price + 0.05))
+            if self.inference_service is not None:
+                inference = self.inference_service.posterior_probability(
+                    market_id=snapshot.market_id,
+                    market_prior=market_price,
+                    evidence_items=[],
+                )
+                simulated_forecast = inference.probability
+            else:
+                # Deterministic forecast path retained for backward compatibility.
+                simulated_forecast = min(1.0, max(0.0, market_price + 0.05))
 
             # Evaluate trade with DecisionEngine
             decision = self.decision_engine.evaluate_trade(

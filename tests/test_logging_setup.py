@@ -1,6 +1,7 @@
 import logging
-from kal_predict.logging_setup import setup_logging, get_logger, TraceIDFilter
-from kal_predict.trace import set_trace_id, reset_trace_id
+
+from kal_predict.logging_setup import TraceIDFilter, get_logger, setup_logging
+from kal_predict.trace import reset_trace_id, set_trace_id
 
 
 def test_setup_logging_initializes():

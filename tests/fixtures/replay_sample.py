@@ -41,7 +41,9 @@ def load_market_snapshots() -> tuple[list[MarketSnapshot], dict[str, Any]]:
         with open(fixtures_path, "r") as f:
             data = json.load(f)  # Can raise json.JSONDecodeError
 
-        snapshots = [MarketSnapshot(**snap) for snap in data["snapshots"]]  # Can raise ValidationError
+        snapshots = [
+            MarketSnapshot(**snap) for snap in data["snapshots"]
+        ]  # Can raise ValidationError
         settlement_data = data.get("settlement", {})
 
         return snapshots, settlement_data
@@ -85,7 +87,9 @@ def load_evidence_items() -> list[EvidenceItem]:
         with open(fixtures_path, "r") as f:
             data = json.load(f)  # Can raise json.JSONDecodeError
 
-        evidence_items = [EvidenceItem(**item) for item in data["items"]]  # Can raise ValidationError
+        evidence_items = [
+            EvidenceItem(**item) for item in data["items"]
+        ]  # Can raise ValidationError
 
         return evidence_items
     except json.JSONDecodeError as e:

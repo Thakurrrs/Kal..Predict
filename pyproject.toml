@@ -14,6 +14,8 @@ authors = [{name = "Rasalghul", email = "rajrohan.thakur07@gmail.com"}]
 dependencies = [
     "pydantic>=2.0,<3.0",
     "pydantic-settings>=2.0,<3.0",
+    "fastapi>=0.115.0,<1.0",
+    "uvicorn>=0.30.0,<1.0",
     "httpx>=0.25.0,<1.0",
     "ollama>=0.3.0,<1.0",
     "structlog>=24.1.0,<25.0",
@@ -33,7 +35,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["kal_predict", "kal_predict.adapters", "kal_predict.core", "kal_predict.fixtures", "kal_predict.pipeline", "kal_predict.utils"]
+packages = ["kal_predict", "kal_predict.adapters", "kal_predict.api", "kal_predict.core", "kal_predict.fixtures", "kal_predict.pipeline", "kal_predict.services", "kal_predict.utils"]
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]

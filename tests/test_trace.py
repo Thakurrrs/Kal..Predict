@@ -1,9 +1,10 @@
 import uuid
+
 from kal_predict.trace import (
     generate_trace_id,
-    set_trace_id,
     get_trace_id,
     reset_trace_id,
+    set_trace_id,
 )
 
 

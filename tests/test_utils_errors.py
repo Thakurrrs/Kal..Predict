@@ -1,8 +1,9 @@
 import pytest
+
 from kal_predict.utils.errors import (
+    ConfigError,
     KalPredictError,
     RiskGateViolation,
-    ConfigError,
 )
 
 

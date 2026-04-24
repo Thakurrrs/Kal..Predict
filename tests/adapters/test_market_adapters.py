@@ -1,6 +1,5 @@
 """Tests for MarketDataProvider abstract interface and implementations."""
 
-
 import pytest
 
 from kal_predict.adapters.market import (
