@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from kal_predict.config import ExecutionConfig
 from kal_predict.adapters.execution import (
     ExecutionProvider,
     MockExecutionProvider,
@@ -78,6 +79,27 @@ class TestPaperExecutionProvider:
         )
 
         result = await paper_provider.execute_trade(live_intent, 0.55, 0.65)
+
+        assert result is None
+
+    async def test_live_mode_rejected_when_live_flag_disabled(self):
+        """Live intents are rejected unless live trading is explicitly enabled."""
+        provider = PaperExecutionProvider(
+            execution_config=ExecutionConfig(mode="live", live_trading_enabled=False)
+        )
+        now = datetime.now(timezone.utc).isoformat()
+        live_intent = TradeIntent(
+            intent_id="intent-live-disabled",
+            market_id="WEATHER-24-WV-RAIN-20240624",
+            side="YES",
+            max_price=0.60,
+            size=10,
+            mode="live",
+            created_at=now,
+            trace_id="trace-live-disabled",
+        )
+
+        result = await provider.execute_trade(live_intent, 0.55, 0.65)
 
         assert result is None
 

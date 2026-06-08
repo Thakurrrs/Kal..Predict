@@ -1,4 +1,4 @@
-from kal_predict.config import KalshiConfig, OllamaConfig, load_config
+from kal_predict.config import ExecutionConfig, KalshiConfig, OllamaConfig, load_config
 
 
 def test_ollama_config_from_env(monkeypatch):
@@ -26,8 +26,42 @@ def test_kalshi_available_checks_credentials(monkeypatch):
     assert config.is_available is True
 
 
+def test_kalshi_base_url_from_env(monkeypatch):
+    """Kalshi API host is configurable for production/demo environments."""
+    monkeypatch.setenv("KALSHI_BASE_URL", "https://example.kalshi.test")
+
+    config = KalshiConfig()
+
+    assert config.base_url == "https://example.kalshi.test"
+
+
 def test_load_config_succeeds():
     """Test that load_config() initializes successfully."""
     config = load_config()
     assert config.ollama.base_url is not None
     assert config.execution.mode in ("paper", "live")
+
+
+def test_execution_config_defaults_keep_live_disabled():
+    """Execution defaults must favor paper trading and require 200 resolved trades."""
+    config = ExecutionConfig()
+
+    assert config.mode == "paper"
+    assert config.paper_trading_enabled is True
+    assert config.live_trading_enabled is False
+    assert config.promotion_required_resolved_trades == 200
+
+
+def test_execution_config_env_overrides(monkeypatch):
+    """Execution safety controls can be overridden only via explicit env vars."""
+    monkeypatch.setenv("EXECUTION_MODE", "live")
+    monkeypatch.setenv("EXECUTION_LIVE_TRADING_ENABLED", "true")
+    monkeypatch.setenv("EXECUTION_PAPER_TRADING_ENABLED", "false")
+    monkeypatch.setenv("EXECUTION_PROMOTION_REQUIRED_RESOLVED_TRADES", "250")
+
+    config = ExecutionConfig()
+
+    assert config.mode == "live"
+    assert config.live_trading_enabled is True
+    assert config.paper_trading_enabled is False
+    assert config.promotion_required_resolved_trades == 250

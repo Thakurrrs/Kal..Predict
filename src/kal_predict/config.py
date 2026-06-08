@@ -26,6 +26,7 @@ class OllamaConfig(BaseSettings):
 class KalshiConfig(BaseSettings):
     """Kalshi API configuration (credential mode only)."""
 
+    base_url: str = Field(default="https://external-api.kalshi.com")
     api_key_id: Optional[str] = Field(default=None)
     private_key_path: Optional[str] = Field(default=None)
 
@@ -72,6 +73,9 @@ class ExecutionConfig(BaseSettings):
 
     mode: str = Field(default="paper")  # "paper" or "live" (live only after Gate F)
     trading_enabled: bool = Field(default=True)
+    paper_trading_enabled: bool = Field(default=True)
+    live_trading_enabled: bool = Field(default=False)
+    promotion_required_resolved_trades: int = Field(default=200)
     capital_usd: float = Field(default=10000.0)
     max_position_usd: float = Field(default=1000.0)
 
@@ -82,6 +86,10 @@ class RiskGateConfig(BaseSettings):
     """Risk gate thresholds (deterministic, fail-closed)."""
 
     min_confidence: float = Field(default=0.55)
+    max_market_spread: float = Field(default=0.10)
+    min_market_volume: int = Field(default=1)
+    min_market_liquidity: float = Field(default=0.0)
+    min_hours_to_close: float = Field(default=0.25)
     max_loss_per_trade_usd: float = Field(default=500.0)
     daily_loss_limit_usd: float = Field(default=2000.0)
 

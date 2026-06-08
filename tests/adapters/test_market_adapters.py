@@ -1,6 +1,11 @@
 """Tests for MarketDataProvider abstract interface and implementations."""
 
+import base64
+
+import httpx
 import pytest
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 from kal_predict.adapters.market import (
     KalshiMarketDataProvider,
@@ -134,59 +139,264 @@ class TestMockMarketDataProvider:
 
 @pytest.mark.asyncio
 class TestKalshiMarketDataProvider:
-    """Test KalshiMarketDataProvider read-only stubs."""
+    """Test KalshiMarketDataProvider read-only API behavior."""
 
     @pytest.fixture
-    def kalshi_provider(self):
+    def rsa_private_key_pem(self) -> str:
+        """Create a valid RSA private key for signing tests."""
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        return private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode("utf-8")
+
+    @pytest.fixture
+    def kalshi_provider(self, rsa_private_key_pem):
         """Create a KalshiMarketDataProvider instance."""
         return KalshiMarketDataProvider(
             api_key_id="test_key_id",
-            private_key_pem="test_key_pem",
+            private_key_pem=rsa_private_key_pem,
         )
 
-    async def test_kalshi_read_only_stubs(self, kalshi_provider, caplog):
-        """Verify Kalshi returns None/[] with warning (disabled until Saturday)."""
-        import logging
-
-        caplog.set_level(logging.WARNING)
-
-        # get_market_snapshot should return None
-        result = await kalshi_provider.get_market_snapshot("WEATHER-24-WV-RAIN-20240624")
-        assert result is None
-
-        # Check warning was logged
-        assert any(
-            "Kalshi API not available until Saturday" in record.message for record in caplog.records
+    async def test_kalshi_signed_headers_are_rsa_pss_sha256(self, rsa_private_key_pem):
+        """Signed headers follow Kalshi timestamp + method + path convention."""
+        provider = KalshiMarketDataProvider(
+            api_key_id="test_key_id",
+            private_key_pem=rsa_private_key_pem,
         )
 
-    async def test_kalshi_list_markets_empty(self, kalshi_provider, caplog):
-        """Verify list_markets returns empty list."""
-        import logging
-
-        caplog.set_level(logging.WARNING)
-
-        result = await kalshi_provider.list_markets()
-        assert result == []
-
-        # Check warning was logged
-        assert any(
-            "Kalshi API not available until Saturday" in record.message for record in caplog.records
+        headers = provider._signed_headers(
+            method="GET",
+            path="/trade-api/v2/markets",
+            timestamp_ms="1790000000000",
         )
 
-    async def test_kalshi_historical_snapshots_empty(self, kalshi_provider, caplog):
-        """Verify historical snapshots returns empty list."""
-        import logging
+        assert headers["KALSHI-ACCESS-KEY"] == "test_key_id"
+        assert headers["KALSHI-ACCESS-TIMESTAMP"] == "1790000000000"
+        assert "KALSHI-ACCESS-SIGNATURE" in headers
 
-        caplog.set_level(logging.WARNING)
+        private_key = serialization.load_pem_private_key(
+            rsa_private_key_pem.encode("utf-8"),
+            password=None,
+        )
+        public_key = private_key.public_key()
+        signature = base64.b64decode(headers["KALSHI-ACCESS-SIGNATURE"])
+        public_key.verify(
+            signature,
+            b"1790000000000GET/trade-api/v2/markets",
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.DIGEST_LENGTH,
+            ),
+            hashes.SHA256(),
+        )
 
+    async def test_kalshi_requests_include_signed_headers(self, rsa_private_key_pem):
+        """Read-only API requests include Kalshi auth headers."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.headers["KALSHI-ACCESS-KEY"] == "test_key_id"
+            assert request.headers["KALSHI-ACCESS-TIMESTAMP"].isdigit()
+            assert request.headers["KALSHI-ACCESS-SIGNATURE"]
+            return httpx.Response(200, json={"markets": [], "cursor": ""})
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            base_url="https://external-api.kalshi.com",
+        ) as client:
+            provider = KalshiMarketDataProvider(
+                api_key_id="test_key_id",
+                private_key_pem=rsa_private_key_pem,
+                http_client=client,
+                base_url="https://external-api.kalshi.com",
+            )
+            snapshots = await provider.list_market_snapshots(status="open")
+
+        assert snapshots == []
+
+    async def test_kalshi_list_market_snapshots_maps_api_response(self, rsa_private_key_pem):
+        """Verify Kalshi market JSON maps into richer MarketSnapshot records."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/trade-api/v2/markets"
+            assert request.url.params["status"] == "open"
+            return httpx.Response(
+                200,
+                json={
+                    "markets": [
+                        {
+                            "ticker": "KXCPICORE-26JUN-T3.0",
+                            "title": "Will core CPI inflation be above 3.0% in June 2026?",
+                            "status": "open",
+                            "close_time": "2026-06-10T14:00:00Z",
+                            "yes_bid_dollars": "0.4100",
+                            "yes_ask_dollars": "0.4400",
+                            "no_bid_dollars": "0.5600",
+                            "no_ask_dollars": "0.5900",
+                            "volume_fp": "4200.00",
+                            "liquidity_dollars": "120.5000",
+                            "event_ticker": "KXCPICORE-26JUN",
+                        }
+                    ],
+                    "cursor": "",
+                },
+            )
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            base_url="https://external-api.kalshi.com",
+        ) as client:
+            provider = KalshiMarketDataProvider(
+                api_key_id="test_key_id",
+                private_key_pem=rsa_private_key_pem,
+                http_client=client,
+                base_url="https://external-api.kalshi.com",
+            )
+            snapshots = await provider.list_market_snapshots(status="open")
+
+        assert len(snapshots) == 1
+        snapshot = snapshots[0]
+        assert snapshot.market_id == "KXCPICORE-26JUN-T3.0"
+        assert snapshot.ticker == "KXCPICORE-26JUN-T3.0"
+        assert snapshot.title.startswith("Will core CPI")
+        assert snapshot.status == "open"
+        assert snapshot.yes_bid == 0.41
+        assert snapshot.yes_ask == 0.44
+        assert snapshot.no_bid == 0.56
+        assert snapshot.no_ask == 0.59
+        assert snapshot.volume == 4200
+        assert snapshot.liquidity == 120.5
+
+    async def test_kalshi_list_markets_returns_tickers_from_api(self, rsa_private_key_pem):
+        """Existing list_markets API remains compatible and returns ticker strings."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "markets": [
+                        {
+                            "ticker": "MARKET-1",
+                            "title": "Market 1",
+                            "status": "open",
+                            "yes_bid_dollars": "0.4000",
+                            "yes_ask_dollars": "0.4500",
+                            "no_bid_dollars": "0.5500",
+                            "no_ask_dollars": "0.6000",
+                            "volume_fp": "10.00",
+                        }
+                    ],
+                    "cursor": "",
+                },
+            )
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            base_url="https://external-api.kalshi.com",
+        ) as client:
+            provider = KalshiMarketDataProvider(
+                api_key_id="test_key_id",
+                private_key_pem=rsa_private_key_pem,
+                http_client=client,
+                base_url="https://external-api.kalshi.com",
+            )
+            markets = await provider.list_markets()
+
+        assert markets == ["MARKET-1"]
+
+    async def test_kalshi_get_market_snapshot_fetches_single_market(self, rsa_private_key_pem):
+        """Provider fetches a single market by ticker and maps it to MarketSnapshot."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/trade-api/v2/markets/KXCPICORE-26JUN-T3.0"
+            return httpx.Response(
+                200,
+                json={
+                    "market": {
+                        "ticker": "KXCPICORE-26JUN-T3.0",
+                        "title": "Will core CPI inflation be above 3.0% in June 2026?",
+                        "status": "open",
+                        "close_time": "2026-06-10T14:00:00Z",
+                        "yes_bid_dollars": "0.4100",
+                        "yes_ask_dollars": "0.4400",
+                        "no_bid_dollars": "0.5600",
+                        "no_ask_dollars": "0.5900",
+                        "volume_fp": "4200.00",
+                    }
+                },
+            )
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            base_url="https://external-api.kalshi.com",
+        ) as client:
+            provider = KalshiMarketDataProvider(
+                api_key_id="test_key_id",
+                private_key_pem=rsa_private_key_pem,
+                http_client=client,
+                base_url="https://external-api.kalshi.com",
+            )
+            snapshot = await provider.get_market_snapshot("KXCPICORE-26JUN-T3.0")
+
+        assert snapshot is not None
+        assert snapshot.market_id == "KXCPICORE-26JUN-T3.0"
+        assert snapshot.yes_mid == pytest.approx(0.425)
+
+    async def test_kalshi_get_market_snapshot_returns_none_on_404(self, rsa_private_key_pem):
+        """Provider returns None for missing markets."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(404, json={"error": {"message": "not found"}})
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            base_url="https://external-api.kalshi.com",
+        ) as client:
+            provider = KalshiMarketDataProvider(
+                api_key_id="test_key_id",
+                private_key_pem=rsa_private_key_pem,
+                http_client=client,
+                base_url="https://external-api.kalshi.com",
+            )
+            snapshot = await provider.get_market_snapshot("MISSING")
+
+        assert snapshot is None
+
+    async def test_kalshi_get_orderbook_fetches_raw_orderbook(self, rsa_private_key_pem):
+        """Provider exposes raw orderbook for later executable-price validation."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/trade-api/v2/markets/MARKET-1/orderbook"
+            return httpx.Response(
+                200,
+                json={
+                    "orderbook_fp": {
+                        "yes_dollars": [["0.4100", "100.00"]],
+                        "no_dollars": [["0.5600", "50.00"]],
+                    }
+                },
+            )
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            base_url="https://external-api.kalshi.com",
+        ) as client:
+            provider = KalshiMarketDataProvider(
+                api_key_id="test_key_id",
+                private_key_pem=rsa_private_key_pem,
+                http_client=client,
+                base_url="https://external-api.kalshi.com",
+            )
+            orderbook = await provider.get_orderbook("MARKET-1")
+
+        assert orderbook["orderbook_fp"]["yes_dollars"] == [["0.4100", "100.00"]]
+
+    async def test_kalshi_historical_snapshots_empty(self, kalshi_provider):
+        """Historical snapshots remain disabled until a separate historical adapter is added."""
         result = await kalshi_provider.get_historical_snapshots(
             "WEATHER-24-WV-RAIN-20240624",
             start_time="2024-06-01T00:00:00Z",
             end_time="2024-06-30T23:59:59Z",
         )
         assert result == []
-
-        # Check warning was logged
-        assert any(
-            "Kalshi API not available until Saturday" in record.message for record in caplog.records
-        )

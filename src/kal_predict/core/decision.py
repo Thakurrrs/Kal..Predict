@@ -1,6 +1,7 @@
 """Bayesian decision engine with MixMCP and deterministic risk gates."""
 
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from kal_predict.config import AppConfig
@@ -72,6 +73,48 @@ class DecisionEngine:
         edge = our_estimate - market_price
         return edge
 
+    def compute_side_edges(
+        self, market_snapshot: MarketSnapshot, probability_yes: float
+    ) -> dict[str, float]:
+        """Compute side-aware edge using executable ask prices.
+
+        YES edge: P(YES) - YES ask
+        NO edge: P(NO) - NO ask
+        """
+        probability_no = 1.0 - probability_yes
+        return {
+            "YES": probability_yes - market_snapshot.yes_ask,
+            "NO": probability_no - market_snapshot.no_ask,
+        }
+
+    def choose_trade_side(
+        self,
+        market_snapshot: MarketSnapshot,
+        probability_yes: float,
+        min_edge: float,
+    ) -> tuple[Optional[str], float, float]:
+        """Choose the best positive side based on executable ask-price edge.
+
+        Returns:
+            (side, edge, price). side is None when no side meets min_edge.
+        """
+        side_edges = self.compute_side_edges(market_snapshot, probability_yes)
+        yes_edge = side_edges["YES"]
+        no_edge = side_edges["NO"]
+
+        if yes_edge >= no_edge:
+            best_side: Optional[str] = "YES"
+            best_edge = yes_edge
+            best_price = market_snapshot.yes_ask
+        else:
+            best_side = "NO"
+            best_edge = no_edge
+            best_price = market_snapshot.no_ask
+
+        if best_edge < min_edge:
+            return None, best_edge, best_price
+        return best_side, best_edge, best_price
+
     def check_confidence_gate(self, probability: float) -> bool:
         """Check if probability meets minimum confidence threshold.
 
@@ -116,6 +159,64 @@ class DecisionEngine:
             },
         )
         return passes
+
+    def _parse_iso_datetime(self, value: str) -> datetime:
+        """Parse ISO8601 timestamps, accepting trailing Z as UTC."""
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed
+
+    def check_market_quality(
+        self, market_snapshot: MarketSnapshot, now_iso: Optional[str] = None
+    ) -> tuple[bool, Optional[str], dict[str, str]]:
+        """Evaluate deterministic pre-research market quality gates."""
+        gates: dict[str, str] = {}
+        first_failed_reason: Optional[str] = None
+
+        def record(gate: str, passed: bool, reason: str) -> None:
+            nonlocal first_failed_reason
+            gates[gate] = "PASS" if passed else "FAIL"
+            if not passed and first_failed_reason is None:
+                first_failed_reason = reason
+
+        record("market_open", market_snapshot.status.lower() == "open", "market_not_open")
+
+        quotes_present = (
+            market_snapshot.yes_bid > 0
+            and market_snapshot.yes_ask > 0
+            and market_snapshot.no_bid > 0
+            and market_snapshot.no_ask > 0
+            and market_snapshot.yes_ask >= market_snapshot.yes_bid
+            and market_snapshot.no_ask >= market_snapshot.no_bid
+        )
+        record("quotes_present", quotes_present, "quotes_missing")
+
+        max_spread = self.config.risk_gate.max_market_spread
+        spread_ok = (
+            (market_snapshot.yes_ask - market_snapshot.yes_bid) <= max_spread
+            and (market_snapshot.no_ask - market_snapshot.no_bid) <= max_spread
+        )
+        record("spread_acceptable", spread_ok, "spread_too_wide")
+
+        volume_ok = market_snapshot.volume >= self.config.risk_gate.min_market_volume
+        record("volume_acceptable", volume_ok, "volume_too_low")
+
+        liquidity_ok = (
+            market_snapshot.liquidity is None
+            or market_snapshot.liquidity >= self.config.risk_gate.min_market_liquidity
+        )
+        record("liquidity_acceptable", liquidity_ok, "liquidity_too_low")
+
+        close_time_ok = True
+        if market_snapshot.close_time:
+            now = self._parse_iso_datetime(now_iso) if now_iso else datetime.now(timezone.utc)
+            close_time = self._parse_iso_datetime(market_snapshot.close_time)
+            hours_to_close = (close_time - now).total_seconds() / 3600.0
+            close_time_ok = hours_to_close >= self.config.risk_gate.min_hours_to_close
+        record("close_time_acceptable", close_time_ok, "close_time_too_soon")
+
+        return first_failed_reason is None, first_failed_reason, gates
 
     def check_daily_loss_gate(self, daily_loss_so_far: float) -> bool:
         """Check if daily losses are within limit.
