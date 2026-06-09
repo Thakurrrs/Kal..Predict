@@ -95,6 +95,22 @@ class PaperDataConfig(BaseSettings):
     model_config = ConfigDict(env_prefix="PAPER_DATA_")
 
 
+class PaperSizingConfig(BaseSettings):
+    """Conservative paper trade sizing configuration."""
+
+    bankroll_usd: float = Field(default=10000.0)
+    kelly_fraction: float = Field(default=0.10, ge=0.0, le=1.0)
+    min_contracts: int = Field(default=1, ge=1)
+    max_dollars_per_trade: float = Field(default=100.0)
+    max_daily_risk_usd: float = Field(default=300.0)
+    max_category_exposure_usd: float = Field(default=500.0)
+    max_series_exposure_usd: float = Field(default=250.0)
+    longshot_price_threshold: float = Field(default=0.10)
+    max_longshot_dollars: float = Field(default=25.0)
+
+    model_config = ConfigDict(env_prefix="PAPER_SIZING_")
+
+
 class SearchConfig(BaseSettings):
     """Search provider configuration."""
 
@@ -152,6 +168,7 @@ class AppConfig(BaseSettings):
     fred: FredConfig = Field(default_factory=FredConfig)
     bls: BLSConfig = Field(default_factory=BLSConfig)
     paper_data: PaperDataConfig = Field(default_factory=PaperDataConfig)
+    paper_sizing: PaperSizingConfig = Field(default_factory=PaperSizingConfig)
     search: SearchConfig = Field(default_factory=SearchConfig)
     execution: ExecutionConfig = Field(default_factory=ExecutionConfig)
     risk_gate: RiskGateConfig = Field(default_factory=RiskGateConfig)

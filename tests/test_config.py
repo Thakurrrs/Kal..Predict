@@ -4,6 +4,7 @@ from kal_predict.config import (
     KalshiConfig,
     OllamaConfig,
     PaperDataConfig,
+    PaperSizingConfig,
     load_config,
 )
 
@@ -65,6 +66,17 @@ def test_paper_data_config_from_env(monkeypatch):
     assert config.database_path == "data/test-paper.db"
     assert config.nws_cache_ttl_seconds == 1200
     assert config.fred_cache_ttl_seconds == 7200
+
+
+def test_paper_sizing_config_from_env(monkeypatch):
+    """Paper sizing risk caps are runtime configurable."""
+    monkeypatch.setenv("PAPER_SIZING_BANKROLL_USD", "5000")
+    monkeypatch.setenv("PAPER_SIZING_MAX_DOLLARS_PER_TRADE", "75")
+
+    config = PaperSizingConfig()
+
+    assert config.bankroll_usd == 5000.0
+    assert config.max_dollars_per_trade == 75.0
 
 
 def test_load_config_succeeds():

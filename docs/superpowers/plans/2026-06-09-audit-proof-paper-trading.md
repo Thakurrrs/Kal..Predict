@@ -271,7 +271,7 @@ git commit -m "feat: add durable paper store schema"
 - Test: `tests/core/test_sizing.py`
 - Modify: `src/kal_predict/config.py`
 
-- [ ] **Step 1: Add sizing config**
+- [x] **Step 1: Add sizing config**
 
 Add:
 
@@ -292,7 +292,7 @@ class PaperSizingConfig(BaseSettings):
 
 Add `paper_sizing: PaperSizingConfig` to `AppConfig`.
 
-- [ ] **Step 2: Write failing zero-edge test**
+- [x] **Step 2: Write failing zero-edge test**
 
 ```python
 from kal_predict.config import PaperSizingConfig
@@ -312,23 +312,23 @@ def test_sizer_returns_zero_when_net_edge_not_positive():
     assert "net_edge_not_positive" in result.failed_caps
 ```
 
-- [ ] **Step 3: Implement minimal `PaperSizer`**
+- [x] **Step 3: Implement minimal `PaperSizer`**
 
 Create `SizingResult` dataclass with `contracts`, `notional_usd`, and `failed_caps`.
 
-- [ ] **Step 4: Add invalid price and rounding tests**
+- [x] **Step 4: Add invalid price and rounding tests**
 
 Test `price=0`, `price=1`, and a valid price where notional rounds down to whole contracts.
 
-- [ ] **Step 5: Add cap tests**
+- [x] **Step 5: Add cap tests**
 
 Test max dollars per trade, daily risk cap, category exposure cap, series exposure cap, and long-shot cap.
 
-- [ ] **Step 6: Implement caps**
+- [x] **Step 6: Implement caps**
 
 Apply caps before returning. If final contracts are below `min_contracts`, return zero with `below_min_contracts`.
 
-- [ ] **Step 7: Verify and commit**
+- [x] **Step 7: Verify and commit**
 
 Run focused sizing tests and config tests, then commit:
 
