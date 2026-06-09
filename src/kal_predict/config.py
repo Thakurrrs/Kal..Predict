@@ -84,6 +84,17 @@ class BLSConfig(BaseSettings):
     model_config = ConfigDict(env_prefix="BLS_")
 
 
+class PaperDataConfig(BaseSettings):
+    """Paper trading persistence and source cache configuration."""
+
+    database_path: str = Field(default="data/paper_trading.db")
+    default_source_cache_ttl_seconds: int = Field(default=900)
+    nws_cache_ttl_seconds: int = Field(default=1800)
+    fred_cache_ttl_seconds: int = Field(default=21600)
+
+    model_config = ConfigDict(env_prefix="PAPER_DATA_")
+
+
 class SearchConfig(BaseSettings):
     """Search provider configuration."""
 
@@ -140,6 +151,7 @@ class AppConfig(BaseSettings):
     nws: NWSConfig = Field(default_factory=NWSConfig)
     fred: FredConfig = Field(default_factory=FredConfig)
     bls: BLSConfig = Field(default_factory=BLSConfig)
+    paper_data: PaperDataConfig = Field(default_factory=PaperDataConfig)
     search: SearchConfig = Field(default_factory=SearchConfig)
     execution: ExecutionConfig = Field(default_factory=ExecutionConfig)
     risk_gate: RiskGateConfig = Field(default_factory=RiskGateConfig)

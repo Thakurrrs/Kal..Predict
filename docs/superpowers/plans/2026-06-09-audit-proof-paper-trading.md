@@ -61,7 +61,7 @@ Modify:
 - Test: `tests/research/test_source_cache.py`
 - Modify: `src/kal_predict/config.py`
 
-- [ ] **Step 1: Write failing cache miss test**
+- [x] **Step 1: Write failing cache miss test**
 
 Add:
 
@@ -95,7 +95,7 @@ async def test_source_cache_fetches_and_persists_on_miss(tmp_path):
     assert calls == 1
 ```
 
-- [ ] **Step 2: Run miss test red**
+- [x] **Step 2: Run miss test red**
 
 Run:
 
@@ -105,15 +105,15 @@ $env:PYTHONDONTWRITEBYTECODE='1'; .\.venv\Scripts\python.exe -m pytest tests/res
 
 Expected: import failure for `kal_predict.research.source_cache`.
 
-- [ ] **Step 3: Implement minimal cache miss path**
+- [x] **Step 3: Implement minimal cache miss path**
 
 Create `SourceCacheResult` dataclass and `SourceCache.get_or_fetch()`. Use SQLite standard library. Store `source`, `cache_key`, JSON payload, `retrieved_at`, and `expires_at`. Create table on initialization.
 
-- [ ] **Step 4: Run miss test green**
+- [x] **Step 4: Run miss test green**
 
 Run the same focused test. Expected: pass.
 
-- [ ] **Step 5: Add cache hit test**
+- [x] **Step 5: Add cache hit test**
 
 Add:
 
@@ -137,15 +137,15 @@ async def test_source_cache_returns_cached_payload_before_expiry(tmp_path):
     assert calls == 1
 ```
 
-- [ ] **Step 6: Implement cache hit path**
+- [x] **Step 6: Implement cache hit path**
 
 Read existing row by `(source, cache_key)`. Return hit only when `expires_at > now`.
 
-- [ ] **Step 7: Add expiry and key isolation tests**
+- [x] **Step 7: Add expiry and key isolation tests**
 
 Add one test where `now` advances beyond `expires_at` and fetch is called again. Add one test where two different keys do not share payload.
 
-- [ ] **Step 8: Add config**
+- [x] **Step 8: Add config**
 
 In `config.py`, add:
 
@@ -161,7 +161,7 @@ class PaperDataConfig(BaseSettings):
 
 Add `paper_data: PaperDataConfig` to `AppConfig`.
 
-- [ ] **Step 9: Verify and commit**
+- [x] **Step 9: Verify and commit**
 
 Run:
 

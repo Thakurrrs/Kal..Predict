@@ -1,4 +1,11 @@
-from kal_predict.config import ExecutionConfig, FredConfig, KalshiConfig, OllamaConfig, load_config
+from kal_predict.config import (
+    ExecutionConfig,
+    FredConfig,
+    KalshiConfig,
+    OllamaConfig,
+    PaperDataConfig,
+    load_config,
+)
 
 
 def test_ollama_config_from_env(monkeypatch):
@@ -45,6 +52,19 @@ def test_fred_config_api_key_from_env(monkeypatch):
     assert config.api_key == "fred-test-key"
     assert config.base_url == "https://fred.example.test"
     assert config.is_available is True
+
+
+def test_paper_data_config_from_env(monkeypatch):
+    """Paper data path and source-cache TTLs are runtime configurable."""
+    monkeypatch.setenv("PAPER_DATA_DATABASE_PATH", "data/test-paper.db")
+    monkeypatch.setenv("PAPER_DATA_NWS_CACHE_TTL_SECONDS", "1200")
+    monkeypatch.setenv("PAPER_DATA_FRED_CACHE_TTL_SECONDS", "7200")
+
+    config = PaperDataConfig()
+
+    assert config.database_path == "data/test-paper.db"
+    assert config.nws_cache_ttl_seconds == 1200
+    assert config.fred_cache_ttl_seconds == 7200
 
 
 def test_load_config_succeeds():
