@@ -329,19 +329,19 @@ Hard requirements for every category fetcher:
 - Modify: `src/kal_predict/config.py`
 - Test: `tests/research/test_fetchers.py`
 
-- [ ] Add `FRED_API_KEY` and optional BLS config.
+- [x] Add `FRED_API_KEY` and optional BLS config.
 
-- [ ] Support a limited first set:
+- [x] Support a limited first set:
   - CPI
   - unemployment
   - Fed funds rate
   - GDP
 
-- [ ] Fetch official historical series.
+- [x] Fetch official historical series.
 
-- [ ] Record release calendar, recent trend, prior value, and market threshold.
+- [x] Record release calendar, recent trend, prior value, and market threshold.
 
-- [ ] Skip economics markets that cannot be mapped to a supported series.
+- [x] Skip economics markets that cannot be mapped to a supported series.
 
 - [ ] Economics-specific skip cases:
   - unsupported economic indicator
@@ -351,11 +351,11 @@ Hard requirements for every category fetcher:
   - latest official observation is stale relative to market question
   - market threshold cannot be parsed into a numeric comparison
 
-- [ ] Economics-specific tests:
-  - CPI threshold market maps to `CPIAUCSL`
-  - unemployment threshold market maps to `UNRATE`
-  - ambiguous "inflation" market without threshold skips
-  - missing `FRED_API_KEY` skips economics fetch without crashing
+- [x] Economics-specific tests:
+  - [x] CPI threshold market maps to `CPIAUCSL`
+  - [x] unemployment threshold market maps to `UNRATE`
+  - [x] ambiguous "inflation" market without threshold skips
+  - [x] missing `FRED_API_KEY` skips economics fetch without crashing
 
 ### Task 3.5: Add Sports and Politics as Paper-Only, Lower Priority
 

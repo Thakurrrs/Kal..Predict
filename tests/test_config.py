@@ -1,4 +1,4 @@
-from kal_predict.config import ExecutionConfig, KalshiConfig, OllamaConfig, load_config
+from kal_predict.config import ExecutionConfig, FredConfig, KalshiConfig, OllamaConfig, load_config
 
 
 def test_ollama_config_from_env(monkeypatch):
@@ -33,6 +33,18 @@ def test_kalshi_base_url_from_env(monkeypatch):
     config = KalshiConfig()
 
     assert config.base_url == "https://example.kalshi.test"
+
+
+def test_fred_config_api_key_from_env(monkeypatch):
+    """FRED key and host are configurable for economics research."""
+    monkeypatch.setenv("FRED_API_KEY", "fred-test-key")
+    monkeypatch.setenv("FRED_BASE_URL", "https://fred.example.test")
+
+    config = FredConfig()
+
+    assert config.api_key == "fred-test-key"
+    assert config.base_url == "https://fred.example.test"
+    assert config.is_available is True
 
 
 def test_load_config_succeeds():

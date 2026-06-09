@@ -59,6 +59,31 @@ class NWSConfig(BaseSettings):
     model_config = ConfigDict(env_prefix="NWS_")
 
 
+class FredConfig(BaseSettings):
+    """Federal Reserve Economic Data API configuration."""
+
+    api_key: Optional[str] = Field(default=None)
+    base_url: str = Field(default="https://api.stlouisfed.org")
+    timeout_seconds: int = Field(default=20)
+
+    model_config = ConfigDict(env_prefix="FRED_")
+
+    @property
+    def is_available(self) -> bool:
+        """Check if FRED credentials are loaded."""
+        return self.api_key is not None
+
+
+class BLSConfig(BaseSettings):
+    """Bureau of Labor Statistics API configuration."""
+
+    api_key: Optional[str] = Field(default=None)
+    base_url: str = Field(default="https://api.bls.gov")
+    timeout_seconds: int = Field(default=20)
+
+    model_config = ConfigDict(env_prefix="BLS_")
+
+
 class SearchConfig(BaseSettings):
     """Search provider configuration."""
 
@@ -111,6 +136,8 @@ class AppConfig(BaseSettings):
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     kalshi: KalshiConfig = Field(default_factory=KalshiConfig)
     nws: NWSConfig = Field(default_factory=NWSConfig)
+    fred: FredConfig = Field(default_factory=FredConfig)
+    bls: BLSConfig = Field(default_factory=BLSConfig)
     search: SearchConfig = Field(default_factory=SearchConfig)
     execution: ExecutionConfig = Field(default_factory=ExecutionConfig)
     risk_gate: RiskGateConfig = Field(default_factory=RiskGateConfig)
