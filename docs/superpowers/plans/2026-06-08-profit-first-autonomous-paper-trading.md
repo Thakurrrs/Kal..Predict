@@ -291,7 +291,7 @@ Hard requirements for every category fetcher:
   - `freshness_seconds`
   - `error_code`
 
-- [ ] Add tests proving source outage returns `usable=false` and does not raise uncaught exceptions.
+- [x] Add tests proving source outage returns `usable=false` and does not raise uncaught exceptions.
 
 ### Task 3.3: Implement Weather First
 
@@ -299,28 +299,28 @@ Hard requirements for every category fetcher:
 - Create: `src/kal_predict/research/weather.py`
 - Test: `tests/research/test_fetchers.py`
 
-- [ ] Use NWS only.
+- [x] Use NWS only.
 
-- [ ] Parse weather market title enough to identify location, metric, threshold, and deadline.
+- [x] Parse weather market title enough to identify location, metric, threshold, and deadline.
 
-- [ ] If parsing fails, return a research snapshot with `usable=false` and skip reason.
+- [x] If parsing fails, return a research snapshot with `usable=false` and skip reason.
 
-- [ ] Produce structured signals from forecast probability, forecast uncertainty, and update recency.
+- [x] Produce structured signals from forecast probability, forecast uncertainty, and update recency.
 
-- [ ] Weather-specific skip cases:
-  - unsupported location
-  - unsupported weather metric
-  - threshold cannot be parsed
-  - event time cannot be mapped to forecast horizon
-  - NWS gridpoint lookup fails
-  - forecast is stale
-  - forecast horizon is beyond reliable range
+- [x] Weather-specific skip cases:
+  - [x] unsupported location
+  - [x] unsupported weather metric
+  - [x] threshold cannot be parsed
+  - [x] event time cannot be mapped to forecast horizon
+  - [x] NWS gridpoint lookup fails
+  - [x] forecast is stale
+  - [x] forecast horizon is beyond reliable range
 
-- [ ] Weather-specific tests:
-  - valid rain market creates usable research
-  - invalid threshold skips
-  - stale forecast skips
-  - NWS timeout skips with `source_failure_nws_timeout`
+- [x] Weather-specific tests:
+  - [x] valid rain market creates usable research
+  - [x] invalid threshold skips
+  - [x] stale forecast skips
+  - [x] NWS timeout skips with `source_failure_nws_timeout`
 
 ### Task 3.4: Implement Economics Second
 
