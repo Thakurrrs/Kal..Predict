@@ -411,33 +411,33 @@ git commit -m "feat: add deterministic paper decision gates"
 - Modify: `src/kal_predict/storage/paper_store.py`
 - Test: `tests/storage/test_paper_store.py`
 
-- [ ] **Step 1: Write YES win/loss tests**
+- [x] **Step 1: Write YES win/loss tests**
 
 Insert a YES fill at `0.40`, settle won and lost. Assert:
 
 - win net PnL is `(1 - 0.40) * contracts - fees`
 - loss net PnL is `-(0.40 * contracts) - fees`
 
-- [ ] **Step 2: Implement outcome calculation**
+- [x] **Step 2: Implement outcome calculation**
 
 Add `record_outcome(fill_id, outcome)` and `calculate_fill_pnl(fill, outcome)`.
 
-- [ ] **Step 3: Add NO win/loss tests**
+- [x] **Step 3: Add NO win/loss tests**
 
 Use same formula because buying NO pays like a side contract:
 
 - winning NO: `(1 - fill_price) * contracts - fees`
 - losing NO: `-(fill_price * contracts) - fees`
 
-- [ ] **Step 4: Add cancellation and unresolved tests**
+- [x] **Step 4: Add cancellation and unresolved tests**
 
 Canceled markets should not count as wins or losses. Unresolved fills remain exposure, not realized PnL.
 
-- [ ] **Step 5: Add duplicate settlement polling test**
+- [x] **Step 5: Add duplicate settlement polling test**
 
 Recording the same outcome twice must not double-count PnL.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 Run storage tests and full tests, then commit:
 

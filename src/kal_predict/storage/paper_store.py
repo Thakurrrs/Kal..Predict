@@ -54,6 +54,71 @@ class PaperStore:
             self._record_decision(connection, decision)
             self._record_fill(connection, fill)
 
+    def record_outcome(
+        self,
+        fill_id: str,
+        outcome_id: str,
+        status: str,
+        resolved_at: str,
+    ) -> dict[str, Any]:
+        """Record a paper fill outcome and realized PnL once."""
+        with self._connect() as connection:
+            fill = self._get_fill(connection, fill_id)
+            net_pnl = self._calculate_fill_pnl(fill, status)
+            counts_as_resolved_trade = status in {"won", "lost"}
+            cursor = connection.execute(
+                """
+                INSERT OR IGNORE INTO outcomes (
+                    outcome_id, fill_id, market_id, status, net_pnl,
+                    payload_json, resolved_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    outcome_id,
+                    fill_id,
+                    fill["market_id"],
+                    status,
+                    net_pnl,
+                    json.dumps(
+                        {
+                            "outcome_id": outcome_id,
+                            "fill_id": fill_id,
+                            "status": status,
+                            "net_pnl": net_pnl,
+                            "counts_as_resolved_trade": counts_as_resolved_trade,
+                        }
+                    ),
+                    resolved_at,
+                ),
+            )
+        return {
+            "write_status": "inserted" if cursor.rowcount == 1 else "ignored",
+            "net_pnl": net_pnl,
+            "counts_as_resolved_trade": counts_as_resolved_trade,
+        }
+
+    def unresolved_exposure(self) -> float:
+        """Return notional of paper fills without outcomes."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT COALESCE(SUM(f.fill_price * f.size), 0)
+                FROM paper_fills f
+                LEFT JOIN outcomes o ON o.fill_id = f.fill_id
+                WHERE o.fill_id IS NULL
+                """
+            ).fetchone()
+        return round(float(row[0]), 10)
+
+    def realized_net_pnl(self) -> float:
+        """Return realized net PnL from unique outcomes."""
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT COALESCE(SUM(net_pnl), 0) FROM outcomes"
+            ).fetchone()
+        return round(float(row[0]), 10)
+
     def _record_decision(self, connection: sqlite3.Connection, decision: Decision) -> str:
         cursor = connection.execute(
             """
@@ -111,6 +176,41 @@ class PaperStore:
         for field in required:
             if not fill.get(field):
                 raise ValueError(f"missing fill field: {field}")
+
+    def _get_fill(self, connection: sqlite3.Connection, fill_id: str) -> dict[str, Any]:
+        row = connection.execute(
+            """
+            SELECT fill_id, decision_id, market_id, side, fill_price, size,
+                   fees, timestamp, trace_id
+            FROM paper_fills
+            WHERE fill_id = ?
+            """,
+            (fill_id,),
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"unknown fill_id: {fill_id}")
+        return {
+            "fill_id": row[0],
+            "decision_id": row[1],
+            "market_id": row[2],
+            "side": row[3],
+            "fill_price": float(row[4]),
+            "size": int(row[5]),
+            "fees": float(row[6]),
+            "timestamp": row[7],
+            "trace_id": row[8],
+        }
+
+    def _calculate_fill_pnl(self, fill: dict[str, Any], status: str) -> float:
+        if status == "won":
+            pnl = (1.0 - fill["fill_price"]) * fill["size"] - fill["fees"]
+        elif status == "lost":
+            pnl = -(fill["fill_price"] * fill["size"]) - fill["fees"]
+        elif status == "canceled":
+            pnl = 0.0
+        else:
+            raise ValueError(f"unsupported outcome status: {status}")
+        return round(float(pnl), 10)
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.database_path)
