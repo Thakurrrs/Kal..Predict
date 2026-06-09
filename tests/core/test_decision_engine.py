@@ -383,9 +383,9 @@ class TestEvaluateTrade:
         self, decision_engine: DecisionEngine, sample_market_snapshot: MarketSnapshot
     ):
         """Test trade evaluation with all gates passing and positive edge (BUY_YES)."""
-        # Market price: (0.40 + 0.42) / 2 = 0.41
+        # Executable YES price: 0.42
         # Our probability: 0.65
-        # Edge: 0.65 - 0.41 = 0.24 (> 0.05 threshold, should BUY_YES)
+        # Edge: 0.65 - 0.42 = 0.23 (> 0.05 threshold, should BUY_YES)
         our_probability = 0.65
 
         decision = decision_engine.evaluate_trade(
@@ -396,7 +396,7 @@ class TestEvaluateTrade:
 
         assert decision.decision == "BUY_YES"
         assert decision.risk_gate_result == "PASS"
-        assert decision.edge == pytest.approx(0.24, abs=0.001)
+        assert decision.edge == pytest.approx(0.23, abs=0.001)
         assert decision.mixed_probability == pytest.approx(0.65, abs=0.001)
 
     def test_evaluate_trade_all_gates_pass_buy_no(self, decision_engine: DecisionEngine):
@@ -405,10 +405,10 @@ class TestEvaluateTrade:
         For BUY_NO to trigger:
         - Our probability must be high enough to pass confidence gate (>= 0.55)
         - Market must price YES higher than our estimate
-        - Edge must be <= -gap_threshold_pct
+        - NO ask edge must be >= gap_threshold_pct
 
-        Setup: Market prices YES at 0.76, we estimate 0.60 (confident but lower)
-        Edge: 0.60 - 0.76 = -0.16 (< -0.05, triggers BUY_NO)
+        Setup: Market prices NO at 0.25, we estimate P(NO)=0.40
+        Edge: 0.40 - 0.25 = 0.15, triggers BUY_NO
         """
         market_snapshot = MarketSnapshot(
             market_id="test-market-1",
@@ -429,22 +429,94 @@ class TestEvaluateTrade:
 
         assert decision.decision == "BUY_NO"
         assert decision.risk_gate_result == "PASS"
-        # Market price = (0.75 + 0.77) / 2 = 0.76
-        # Edge = 0.60 - 0.76 = -0.16
-        assert decision.edge == pytest.approx(-0.16, abs=0.001)
+        assert decision.edge == pytest.approx(0.15, abs=0.001)
+        assert decision.market_implied_probability == pytest.approx(0.25, abs=0.001)
+
+    def test_evaluate_trade_selects_no_when_no_ask_edge_is_best(
+        self, decision_engine: DecisionEngine
+    ):
+        """BUY_NO uses NO ask edge, not negative YES midpoint divergence."""
+        market_snapshot = MarketSnapshot(
+            market_id="test-no-ask-edge",
+            timestamp="2026-04-24T10:00:00Z",
+            yes_bid=0.68,
+            yes_ask=0.70,
+            no_bid=0.28,
+            no_ask=0.30,
+            volume=1000,
+        )
+
+        decision = decision_engine.evaluate_trade(
+            market_snapshot=market_snapshot,
+            our_probability=0.55,
+            gap_threshold_pct=0.05,
+        )
+
+        assert decision.decision == "BUY_NO"
+        assert decision.risk_gate_result == "PASS"
+        assert decision.edge == pytest.approx(0.15, abs=0.001)
+        assert decision.market_implied_probability == pytest.approx(0.30, abs=0.001)
+
+    def test_evaluate_trade_skips_when_only_midpoint_edge_exists(
+        self, decision_engine: DecisionEngine
+    ):
+        """Midpoint edge must not trigger a trade when executable asks remove edge."""
+        market_snapshot = MarketSnapshot(
+            market_id="test-midpoint-only",
+            timestamp="2026-04-24T10:00:00Z",
+            yes_bid=0.45,
+            yes_ask=0.65,
+            no_bid=0.35,
+            no_ask=0.55,
+            volume=1000,
+        )
+
+        decision = decision_engine.evaluate_trade(
+            market_snapshot=market_snapshot,
+            our_probability=0.55,
+            gap_threshold_pct=0.05,
+        )
+
+        assert decision.decision == "NO_TRADE"
+        assert decision.risk_gate_result == "PASS"
+        assert decision.skip_reason == "net_edge_below_threshold"
+        assert decision.edge == pytest.approx(-0.10, abs=0.001)
+
+    def test_evaluate_trade_skips_when_fees_erase_executable_edge(
+        self, config: AppConfig
+    ):
+        """Fees and slippage reduce edge before the edge gate can pass."""
+        config.risk_gate.estimated_fee_probability_equivalent = 0.03
+        config.risk_gate.slippage_buffer = 0.02
+        decision_engine = DecisionEngine(config)
+        market_snapshot = MarketSnapshot(
+            market_id="test-fees-erase-edge",
+            timestamp="2026-04-24T10:00:00Z",
+            yes_bid=0.44,
+            yes_ask=0.50,
+            no_bid=0.50,
+            no_ask=0.56,
+            volume=1000,
+        )
+
+        decision = decision_engine.evaluate_trade(
+            market_snapshot=market_snapshot,
+            our_probability=0.55,
+            gap_threshold_pct=0.05,
+        )
+
+        assert decision.decision == "NO_TRADE"
+        assert decision.risk_gate_result == "PASS"
+        assert decision.skip_reason == "net_edge_below_threshold"
+        assert decision.edge == pytest.approx(0.0, abs=0.001)
 
     def test_evaluate_trade_all_gates_pass_insufficient_edge(self, decision_engine: DecisionEngine):
         """Test trade evaluation passes all gates but edge insufficient (NO_TRADE).
 
-        Setup: Market prices YES at 0.50, we estimate 0.52 (confidence passes)
-        Edge: 0.52 - 0.50 = 0.02 (< 0.05 threshold, insufficient for trade)
-        But confidence gate passes (0.52 >= 0.55? No, this also fails)
-
-        Use 0.56 instead:
-        Edge: 0.56 - 0.50 = 0.06... wait that's > 0.05.
-
-        Let's use market at 0.52, our estimate at 0.55:
-        Edge: 0.55 - 0.52 = 0.03 (< 0.05, NO_TRADE with PASS)
+        Setup: Market prices YES at 0.53, we estimate 0.55 (confidence passes)
+        Edge: 0.55 - 0.53 = 0.02 (< 0.05 threshold, insufficient for trade)
+        Let's use YES ask at 0.53, our estimate at 0.55:
+        Edge: 0.55 - 0.53 = 0.02 (< 0.05, NO_TRADE with PASS)
         """
         market_snapshot = MarketSnapshot(
             market_id="test-market-1",
@@ -465,9 +537,7 @@ class TestEvaluateTrade:
 
         assert decision.decision == "NO_TRADE"
         assert decision.risk_gate_result == "PASS"
-        # Market price = (0.51 + 0.53) / 2 = 0.52
-        # Edge = 0.55 - 0.52 = 0.03 (insufficient)
-        assert decision.edge == pytest.approx(0.03, abs=0.001)
+        assert decision.edge == pytest.approx(0.02, abs=0.001)
 
     def test_evaluate_trade_confidence_fails(
         self, decision_engine: DecisionEngine, sample_market_snapshot: MarketSnapshot
@@ -546,7 +616,7 @@ class TestEvaluateTrade:
         assert isinstance(decision, Decision)
         assert decision.market_id == "test-market-1"
         assert decision.mixed_probability == pytest.approx(0.60, abs=0.001)
-        assert decision.market_implied_probability == pytest.approx(0.41, abs=0.001)
+        assert decision.market_implied_probability == pytest.approx(0.42, abs=0.001)
         assert decision.trace_id is not None
         assert decision.decision in ("BUY_YES", "BUY_NO", "NO_TRADE")
         assert decision.risk_gate_result in ("PASS", "FAIL")

@@ -99,8 +99,12 @@ class DecisionEngine:
             (side, edge, price). side is None when no side meets min_edge.
         """
         side_edges = self.compute_side_edges(market_snapshot, probability_yes)
-        yes_edge = side_edges["YES"]
-        no_edge = side_edges["NO"]
+        edge_cost = (
+            self.config.risk_gate.estimated_fee_probability_equivalent
+            + self.config.risk_gate.slippage_buffer
+        )
+        yes_edge = side_edges["YES"] - edge_cost
+        no_edge = side_edges["NO"] - edge_cost
 
         if yes_edge >= no_edge:
             best_side: Optional[str] = "YES"
@@ -271,11 +275,11 @@ class DecisionEngine:
         """
         trace_id = get_trace_id()
 
-        # Compute market-implied probability (mid-price of YES)
-        market_price = (market_snapshot.yes_bid + market_snapshot.yes_ask) / 2.0
-
-        # Compute edge (divergence)
-        edge = self.compute_gap(our_estimate=our_probability, market_price=market_price)
+        side, edge, market_price = self.choose_trade_side(
+            market_snapshot=market_snapshot,
+            probability_yes=our_probability,
+            min_edge=gap_threshold_pct,
+        )
 
         # Use config default if not specified
         if max_position_usd is None:
@@ -304,36 +308,24 @@ class DecisionEngine:
                     "edge": edge,
                 },
             )
-        elif edge >= gap_threshold_pct:
-            # Positive edge: consider BUY_YES
-            decision_str = "BUY_YES"
+        elif side is not None:
+            decision_str = f"BUY_{side}"
             risk_gate_result = "PASS"
             logger.info(
-                "Trade decision: BUY_YES",
+                f"Trade decision: BUY_{side}",
                 extra={
                     "trace_id": trace_id,
                     "market_id": market_snapshot.market_id,
+                    "side": side,
                     "edge": edge,
                     "threshold": gap_threshold_pct,
-                },
-            )
-        elif edge <= -gap_threshold_pct:
-            # Negative edge: consider BUY_NO
-            decision_str = "BUY_NO"
-            risk_gate_result = "PASS"
-            logger.info(
-                "Trade decision: BUY_NO",
-                extra={
-                    "trace_id": trace_id,
-                    "market_id": market_snapshot.market_id,
-                    "edge": edge,
-                    "threshold": -gap_threshold_pct,
                 },
             )
         else:
             # Insufficient edge: no trade (but gates passed)
             decision_str = "NO_TRADE"
             risk_gate_result = "PASS"
+            skip_reason = "net_edge_below_threshold"
             logger.debug(
                 "No trade: insufficient edge",
                 extra={
@@ -343,6 +335,15 @@ class DecisionEngine:
                     "threshold": gap_threshold_pct,
                 },
             )
+            # Store the most favorable net edge even when it is not tradeable.
+            side_edges = self.compute_side_edges(market_snapshot, our_probability)
+            market_price = (
+                market_snapshot.yes_ask
+                if side_edges["YES"] >= side_edges["NO"]
+                else market_snapshot.no_ask
+            )
+        if decision_str != "NO_TRADE" or risk_gate_result == "FAIL":
+            skip_reason = None
 
         # Compute expected value (simplified: edge * contract_value)
         # Assuming $1 per contract (standard in prediction markets)
@@ -359,6 +360,7 @@ class DecisionEngine:
             risk_gate_result=risk_gate_result,
             decision=decision_str,
             trace_id=trace_id,
+            skip_reason=skip_reason,
         )
 
         logger.debug(

@@ -477,25 +477,25 @@ Hard requirements:
 - Modify: `src/kal_predict/core/decision.py`
 - Test: `tests/core/test_decision_engine.py`
 
-- [ ] Compute YES edge as `p_yes - yes_ask`.
+- [x] Compute YES edge as `p_yes - yes_ask`.
 
-- [ ] Compute NO edge as `(1 - p_yes) - no_ask`.
+- [x] Compute NO edge as `(1 - p_yes) - no_ask`.
 
-- [ ] Choose the side with better positive edge.
+- [x] Choose the side with better positive edge.
 
-- [ ] Skip if neither side exceeds category threshold.
+- [x] Skip if neither side exceeds category threshold.
 
-- [ ] Add fee/slippage-adjusted edge:
+- [x] Add fee/slippage-adjusted edge:
   - `raw_edge = model_side_probability - side_ask`
   - `fee_adjusted_edge = raw_edge - estimated_fee_probability_equivalent`
   - `net_edge = fee_adjusted_edge - slippage_buffer`
 
-- [ ] Add tests:
-  - YES selected when YES net edge is higher
-  - NO selected when NO net edge is higher
-  - no trade when midpoint edge exists but ask-price edge does not
-  - no trade when fees erase edge
-  - no trade when spread exceeds threshold
+- [x] Add tests:
+  - [x] YES selected when YES net edge is higher
+  - [x] NO selected when NO net edge is higher
+  - [x] no trade when midpoint edge exists but ask-price edge does not
+  - [x] no trade when fees erase edge
+  - [x] no trade when spread exceeds threshold
 
 ### Task 5.2: Add Paper Sizing
 

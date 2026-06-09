@@ -117,6 +117,8 @@ class RiskGateConfig(BaseSettings):
     min_hours_to_close: float = Field(default=0.25)
     max_loss_per_trade_usd: float = Field(default=500.0)
     daily_loss_limit_usd: float = Field(default=2000.0)
+    estimated_fee_probability_equivalent: float = Field(default=0.0, ge=0.0)
+    slippage_buffer: float = Field(default=0.0, ge=0.0)
 
     model_config = ConfigDict(env_prefix="RISK_GATE_")
 
