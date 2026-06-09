@@ -376,6 +376,124 @@ class TestDailyLossGate:
         assert result is True
 
 
+class TestPaperDecisionGates:
+    """Tests for full deterministic paper decision gate traces."""
+
+    def test_evaluate_paper_decision_records_research_unusable_gate(
+        self, decision_engine: DecisionEngine, sample_market_snapshot: MarketSnapshot
+    ):
+        market = sample_market_snapshot.model_copy(update={"status": "open"})
+        decision = decision_engine.evaluate_paper_decision(
+            market_snapshot=market,
+            probability_yes=0.65,
+            category="weather",
+            research_usable=False,
+            source_fresh=True,
+            llm_parse_ok=True,
+            confidence_ok=True,
+            signal_count=2,
+            signals_conflict=False,
+            sizing_contracts=10,
+            enabled_for_paper=True,
+        )
+
+        assert decision.risk_gate_result == "FAIL"
+        assert decision.decision == "NO_TRADE"
+        assert decision.skip_reason == "research_unusable"
+        assert decision.gate_results["research_usable"] == "FAIL"
+        assert decision.gate_results["category_supported"] == "PASS"
+
+    @pytest.mark.parametrize(
+        ("override", "expected_gate", "expected_reason"),
+        [
+            ({"market_status": "closed"}, "market_open", "market_not_open"),
+            ({"yes_bid": 0.0, "yes_ask": 0.0}, "quotes_present", "quotes_missing"),
+            ({"yes_bid": 0.40, "yes_ask": 0.70}, "spread_acceptable", "spread_too_wide"),
+            ({"liquidity": 0.0, "min_liquidity": 1.0}, "liquidity_acceptable", "liquidity_too_low"),
+            ({"category": "unknown"}, "category_supported", "category_unsupported"),
+            (
+                {"enabled_for_paper": False},
+                "category_enabled_for_paper",
+                "category_disabled_for_paper",
+            ),
+            ({"research_usable": False}, "research_usable", "research_unusable"),
+            ({"source_fresh": False}, "source_freshness_acceptable", "source_stale"),
+            ({"llm_parse_ok": False}, "llm_parse_ok", "llm_parse_failed"),
+            ({"confidence_ok": False}, "confidence_acceptable", "confidence_too_low"),
+            ({"signal_count": 0}, "signal_count_acceptable", "insufficient_signals"),
+            ({"signals_conflict": True}, "confluence_acceptable", "signals_conflict"),
+            ({"probability_yes": 0.45}, "net_edge_acceptable", "net_edge_below_threshold"),
+            ({"sizing_contracts": 0}, "sizing_above_minimum", "sizing_below_minimum"),
+            (
+                {"daily_trade_count_ok": False},
+                "daily_trade_count_acceptable",
+                "daily_trade_limit_reached",
+            ),
+            (
+                {"daily_exposure_ok": False},
+                "daily_exposure_acceptable",
+                "daily_exposure_limit_reached",
+            ),
+            (
+                {"category_exposure_ok": False},
+                "category_exposure_acceptable",
+                "category_exposure_limit_reached",
+            ),
+            (
+                {"series_exposure_ok": False},
+                "series_exposure_acceptable",
+                "series_exposure_limit_reached",
+            ),
+        ],
+    )
+    def test_evaluate_paper_decision_first_failed_gate_is_skip_reason(
+        self,
+        decision_engine: DecisionEngine,
+        sample_market_snapshot: MarketSnapshot,
+        override: dict[str, object],
+        expected_gate: str,
+        expected_reason: str,
+    ):
+        market_kwargs = {
+            "market_id": "paper-gate-market",
+            "timestamp": "2026-06-09T12:00:00Z",
+            "yes_bid": override.get("yes_bid", 0.40),
+            "yes_ask": override.get("yes_ask", 0.42),
+            "no_bid": override.get("no_bid", 0.58),
+            "no_ask": override.get("no_ask", 0.60),
+            "volume": 1000,
+            "status": override.get("market_status", "open"),
+            "liquidity": override.get("liquidity", 100.0),
+        }
+        market = MarketSnapshot(**market_kwargs)
+        decision_engine.config.risk_gate.min_market_liquidity = override.get(
+            "min_liquidity", 0.0
+        )
+
+        decision = decision_engine.evaluate_paper_decision(
+            market_snapshot=market,
+            probability_yes=override.get("probability_yes", 0.65),
+            category=override.get("category", "weather"),
+            research_usable=override.get("research_usable", True),
+            source_fresh=override.get("source_fresh", True),
+            llm_parse_ok=override.get("llm_parse_ok", True),
+            confidence_ok=override.get("confidence_ok", True),
+            signal_count=override.get("signal_count", 2),
+            signals_conflict=override.get("signals_conflict", False),
+            sizing_contracts=override.get("sizing_contracts", 10),
+            enabled_for_paper=override.get("enabled_for_paper", True),
+            daily_trade_count_ok=override.get("daily_trade_count_ok", True),
+            daily_exposure_ok=override.get("daily_exposure_ok", True),
+            category_exposure_ok=override.get("category_exposure_ok", True),
+            series_exposure_ok=override.get("series_exposure_ok", True),
+        )
+
+        assert decision.risk_gate_result == "FAIL"
+        assert decision.decision == "NO_TRADE"
+        assert decision.skip_reason == expected_reason
+        assert decision.gate_results[expected_gate] == "FAIL"
+
+
 class TestEvaluateTrade:
     """Integration tests for full trade evaluation with all gates."""
 

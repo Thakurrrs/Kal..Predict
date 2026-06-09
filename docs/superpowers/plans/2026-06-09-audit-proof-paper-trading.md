@@ -345,7 +345,7 @@ git commit -m "feat: add conservative paper sizing"
 - Modify: `src/kal_predict/core/decision.py`
 - Test: `tests/core/test_decision_engine.py`
 
-- [ ] **Step 1: Write failing gate trace test**
+- [x] **Step 1: Write failing gate trace test**
 
 Add a test where research is unusable and assert:
 
@@ -355,7 +355,7 @@ assert decision.skip_reason == "research_unusable"
 assert decision.gate_results["research_usable"] == "FAIL"
 ```
 
-- [ ] **Step 2: Add decision input helper**
+- [x] **Step 2: Add decision input helper**
 
 Add a new method rather than overloading legacy `evaluate_trade()` too much:
 
@@ -376,19 +376,19 @@ def evaluate_paper_decision(
 ) -> Decision:
 ```
 
-- [ ] **Step 3: Implement first failed gate behavior**
+- [x] **Step 3: Implement first failed gate behavior**
 
 Record every gate in order. The first failure becomes `skip_reason`.
 
-- [ ] **Step 4: Add one independent test per gate**
+- [x] **Step 4: Add one independent test per gate**
 
 Use parametrized cases for the 18 gates from the design spec. Each case should assert the expected `skip_reason`.
 
-- [ ] **Step 5: Preserve legacy tests**
+- [x] **Step 5: Preserve legacy tests**
 
 Existing `evaluate_trade()` tests must continue passing. New gate tracing lives in `evaluate_paper_decision()` until the autonomous loop wiring uses it.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 Run:
 

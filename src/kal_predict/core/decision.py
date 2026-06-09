@@ -244,6 +244,130 @@ class DecisionEngine:
         )
         return passes
 
+    def evaluate_paper_decision(
+        self,
+        market_snapshot: MarketSnapshot,
+        probability_yes: float,
+        category: str,
+        research_usable: bool,
+        source_fresh: bool,
+        llm_parse_ok: bool,
+        confidence_ok: bool,
+        signal_count: int,
+        signals_conflict: bool,
+        sizing_contracts: int,
+        enabled_for_paper: bool = True,
+        daily_trade_count_ok: bool = True,
+        daily_exposure_ok: bool = True,
+        category_exposure_ok: bool = True,
+        series_exposure_ok: bool = True,
+        min_edge: float = 0.05,
+    ) -> Decision:
+        """Evaluate paper trading gates in deterministic audit order."""
+        trace_id = get_trace_id()
+        gates: dict[str, str] = {}
+        first_failed_reason: Optional[str] = None
+
+        def record(gate: str, passed: bool, reason: str) -> None:
+            nonlocal first_failed_reason
+            gates[gate] = "PASS" if passed else "FAIL"
+            if not passed and first_failed_reason is None:
+                first_failed_reason = reason
+
+        record("market_open", market_snapshot.status.lower() == "open", "market_not_open")
+
+        quotes_present = (
+            market_snapshot.yes_bid > 0
+            and market_snapshot.yes_ask > 0
+            and market_snapshot.no_bid > 0
+            and market_snapshot.no_ask > 0
+            and market_snapshot.yes_ask >= market_snapshot.yes_bid
+            and market_snapshot.no_ask >= market_snapshot.no_bid
+        )
+        record("quotes_present", quotes_present, "quotes_missing")
+
+        max_spread = self.config.risk_gate.max_market_spread
+        spread_ok = (
+            (market_snapshot.yes_ask - market_snapshot.yes_bid) <= max_spread
+            and (market_snapshot.no_ask - market_snapshot.no_bid) <= max_spread
+        )
+        record("spread_acceptable", spread_ok, "spread_too_wide")
+
+        liquidity_ok = (
+            market_snapshot.liquidity is None
+            or market_snapshot.liquidity >= self.config.risk_gate.min_market_liquidity
+        )
+        record("liquidity_acceptable", liquidity_ok, "liquidity_too_low")
+
+        category_supported = category in {"economics", "weather", "sports", "politics"}
+        record("category_supported", category_supported, "category_unsupported")
+        record(
+            "category_enabled_for_paper",
+            enabled_for_paper,
+            "category_disabled_for_paper",
+        )
+        record("research_usable", research_usable, "research_unusable")
+        record("source_freshness_acceptable", source_fresh, "source_stale")
+        record("llm_parse_ok", llm_parse_ok, "llm_parse_failed")
+        record("confidence_acceptable", confidence_ok, "confidence_too_low")
+        record("signal_count_acceptable", signal_count > 0, "insufficient_signals")
+        record("confluence_acceptable", not signals_conflict, "signals_conflict")
+
+        side, edge, market_price = self.choose_trade_side(
+            market_snapshot=market_snapshot,
+            probability_yes=probability_yes,
+            min_edge=min_edge,
+        )
+        record("net_edge_acceptable", side is not None, "net_edge_below_threshold")
+        record("sizing_above_minimum", sizing_contracts > 0, "sizing_below_minimum")
+        record(
+            "daily_trade_count_acceptable",
+            daily_trade_count_ok,
+            "daily_trade_limit_reached",
+        )
+        record("daily_exposure_acceptable", daily_exposure_ok, "daily_exposure_limit_reached")
+        record(
+            "category_exposure_acceptable",
+            category_exposure_ok,
+            "category_exposure_limit_reached",
+        )
+        record(
+            "series_exposure_acceptable",
+            series_exposure_ok,
+            "series_exposure_limit_reached",
+        )
+
+        if first_failed_reason is not None:
+            return Decision(
+                decision_id=trace_id,
+                market_id=market_snapshot.market_id,
+                mixed_probability=probability_yes,
+                market_implied_probability=market_price,
+                edge=edge,
+                expected_value=edge * 100,
+                risk_gate_result="FAIL",
+                decision="NO_TRADE",
+                trace_id=trace_id,
+                category=category,
+                skip_reason=first_failed_reason,
+                gate_results=gates,
+            )
+
+        return Decision(
+            decision_id=trace_id,
+            market_id=market_snapshot.market_id,
+            mixed_probability=probability_yes,
+            market_implied_probability=market_price,
+            edge=edge,
+            expected_value=edge * 100,
+            risk_gate_result="PASS",
+            decision=f"BUY_{side}",
+            trace_id=trace_id,
+            category=category,
+            skip_reason=None,
+            gate_results=gates,
+        )
+
     def evaluate_trade(
         self,
         market_snapshot: MarketSnapshot,
