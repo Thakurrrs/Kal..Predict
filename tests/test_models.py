@@ -3,7 +3,16 @@
 import pytest
 from pydantic import ValidationError
 
-from kal_predict.models import AuditEvent, Decision, Forecast, MarketSnapshot, TradeIntent
+from kal_predict.models import (
+    AuditEvent,
+    Decision,
+    Forecast,
+    MarketSnapshot,
+    ResearchSnapshot,
+    Signal,
+    SourceHealth,
+    TradeIntent,
+)
 
 
 def test_market_snapshot_schema():
@@ -149,6 +158,41 @@ def test_trade_intent_supports_profit_first_fields():
     assert intent.edge == 0.06
     assert intent.category == "economics"
     assert intent.research_snapshot_id == "research-001"
+
+
+def test_research_snapshot_schema_supports_observation_only():
+    """Research snapshots can store observation-only sports research."""
+    signal = Signal(
+        source="sports_parser",
+        direction="YES",
+        confidence=0.5,
+        rationale="Parsed a supported soccer match-winner market.",
+    )
+    source_health = SourceHealth(
+        source="sports_parser",
+        status="ok",
+        latency_ms=0,
+        freshness_seconds=0,
+        error_code=None,
+    )
+    snapshot = ResearchSnapshot(
+        research_snapshot_id="research-sports-001",
+        market_id="KXWORLD-CUP-ARG-BRA",
+        category="sports",
+        usable=True,
+        skip_reason=None,
+        evidence_items=[],
+        signals=[signal],
+        source_health=[source_health],
+        retrieved_at="2026-06-08T12:00:00Z",
+        expires_at="2026-06-08T12:30:00Z",
+        metadata={"market_type": "match_winner", "paper_trading_enabled": False},
+    )
+
+    assert snapshot.category == "sports"
+    assert snapshot.usable is True
+    assert snapshot.signals[0].source == "sports_parser"
+    assert snapshot.metadata["paper_trading_enabled"] is False
 
 
 def test_audit_event_schema():

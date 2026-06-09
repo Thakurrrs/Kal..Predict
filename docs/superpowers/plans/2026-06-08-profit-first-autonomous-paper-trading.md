@@ -232,28 +232,28 @@ Hard requirements for every category fetcher:
 - Create: `src/kal_predict/research/router.py`
 - Test: `tests/research/test_router.py`
 
-- [ ] Classify markets into:
+- [x] Classify markets into:
   - `economics`
   - `weather`
   - `sports`
   - `politics`
   - `unknown`
 
-- [ ] Use deterministic keyword rules first.
+- [x] Use deterministic keyword rules first.
 
 - [ ] Use LLM fallback only when keyword rules return `unknown`.
 
 - [ ] Cache classification by ticker.
 
-- [ ] Skip `unknown`; never force a bet on unknown markets.
+- [x] Skip `unknown`; never force a bet on unknown markets.
 
-- [ ] Add ambiguity handling:
+- [x] Add ambiguity handling:
   - if keyword rules match multiple categories, return `unknown_ambiguous`
   - if LLM fallback returns anything outside the allowed enum, return `unknown_parse_failed`
   - if title is empty or generic, return `unknown_missing_title`
   - if category is supported but disabled by config, return `known_disabled`
 
-- [ ] Add tests for ambiguous examples:
+- [x] Add tests for ambiguous examples:
   - "Will Trump attend the World Cup final?" must not be classified as pure sports.
   - "Will Fed cut rates before the election?" must not silently choose politics over economics.
   - "Will NYC get rain on election day?" must not silently choose weather over politics.
@@ -264,15 +264,15 @@ Hard requirements for every category fetcher:
 - Create: `src/kal_predict/research/base.py`
 - Test: `tests/research/test_fetchers.py`
 
-- [ ] Define `BaseResearchFetcher` with:
+- [x] Define `BaseResearchFetcher` with:
   - `category_name`
   - `min_edge_threshold`
   - `async fetch(market) -> ResearchSnapshot`
   - `signals(research_snapshot) -> list[Signal]`
 
-- [ ] Add Pydantic models for `ResearchSnapshot` and `Signal` in `models.py`.
+- [x] Add Pydantic models for `ResearchSnapshot` and `Signal` in `models.py`.
 
-- [ ] Add required `ResearchSnapshot` fields:
+- [x] Add required `ResearchSnapshot` fields:
   - `research_snapshot_id`
   - `market_id`
   - `category`
@@ -284,7 +284,7 @@ Hard requirements for every category fetcher:
   - `retrieved_at`
   - `expires_at`
 
-- [ ] Add required `source_health` fields:
+- [x] Add required `source_health` fields:
   - `source`
   - `status`
   - `latency_ms`
@@ -364,13 +364,13 @@ Hard requirements for every category fetcher:
 - Create: `src/kal_predict/research/politics.py`
 - Test: `tests/research/test_fetchers.py`
 
-- [ ] Sports first supports only competitions with a configured structured data source.
+- [x] Sports first supports only competitions with a configured structured data source.
 
 - [ ] Politics starts as observation-only unless all signals are structured and agreement is strong.
 
 - [ ] RSS/search evidence is context, not a primary signal.
 
-- [ ] Sports-specific safety:
+- [x] Sports-specific safety:
   - support only leagues configured in env
   - skip if team/entity parsing is ambiguous
   - skip if data source does not identify the exact match/event

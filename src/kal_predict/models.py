@@ -54,6 +54,42 @@ class EvidenceItem(BaseModel):
     schema_version: int = Field(default=1, description="Contract version")
 
 
+class Signal(BaseModel):
+    """Directional signal derived deterministically from research evidence."""
+
+    source: str = Field(..., description="Signal source name")
+    direction: str = Field(..., description="'YES', 'NO', or 'NEUTRAL'")
+    confidence: float = Field(..., ge=0, le=1, description="Signal confidence")
+    rationale: str = Field(default="", description="Human-readable signal rationale")
+
+
+class SourceHealth(BaseModel):
+    """Health and freshness status for a research source."""
+
+    source: str = Field(..., description="Source name")
+    status: str = Field(..., description="'ok', 'degraded', or 'failed'")
+    latency_ms: int = Field(default=0, ge=0, description="Source latency in milliseconds")
+    freshness_seconds: int = Field(default=0, ge=0, description="Age of source data")
+    error_code: Optional[str] = Field(default=None, description="Failure code when unavailable")
+
+
+class ResearchSnapshot(BaseModel):
+    """Structured research output for a market."""
+
+    research_snapshot_id: str = Field(..., description="Unique research snapshot ID")
+    market_id: str = Field(..., description="Kalshi market ID")
+    category: str = Field(..., description="Research category")
+    usable: bool = Field(..., description="Whether downstream decisioning may use this research")
+    skip_reason: Optional[str] = Field(default=None, description="Reason research is unusable")
+    evidence_items: list[EvidenceItem] = Field(default_factory=list)
+    signals: list[Signal] = Field(default_factory=list)
+    source_health: list[SourceHealth] = Field(default_factory=list)
+    retrieved_at: str = Field(..., description="ISO8601 retrieval timestamp")
+    expires_at: str = Field(..., description="ISO8601 expiration timestamp")
+    metadata: dict[str, object] = Field(default_factory=dict)
+    schema_version: int = Field(default=1, description="Contract version")
+
+
 class Forecast(BaseModel):
     """Probability forecast from decision engine."""
 
