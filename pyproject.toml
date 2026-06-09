@@ -36,7 +36,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["kal_predict", "kal_predict.adapters", "kal_predict.api", "kal_predict.core", "kal_predict.fixtures", "kal_predict.pipeline", "kal_predict.research", "kal_predict.services", "kal_predict.utils"]
+packages = ["kal_predict", "kal_predict.adapters", "kal_predict.api", "kal_predict.core", "kal_predict.fixtures", "kal_predict.pipeline", "kal_predict.research", "kal_predict.services", "kal_predict.storage", "kal_predict.utils"]
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]

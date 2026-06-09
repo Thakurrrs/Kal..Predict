@@ -186,7 +186,7 @@ git commit -m "feat: add persistent source cache"
 - Create: `src/kal_predict/storage/paper_store.py`
 - Test: `tests/storage/test_paper_store.py`
 
-- [ ] **Step 1: Write failing table creation test**
+- [x] **Step 1: Write failing table creation test**
 
 ```python
 from kal_predict.storage.paper_store import PaperStore
@@ -207,11 +207,11 @@ def test_paper_store_creates_required_tables(tmp_path):
     assert "source_cache" in tables
 ```
 
-- [ ] **Step 2: Run table test red**
+- [x] **Step 2: Run table test red**
 
 Expected: import failure for `kal_predict.storage.paper_store`.
 
-- [ ] **Step 3: Implement schema creation**
+- [x] **Step 3: Implement schema creation**
 
 Create `PaperStore.initialize()` with `CREATE TABLE IF NOT EXISTS` statements and indexes:
 
@@ -222,31 +222,31 @@ Create `PaperStore.initialize()` with `CREATE TABLE IF NOT EXISTS` statements an
 - `outcomes(market_id)`
 - `market_skips(market_id, reason)`
 
-- [ ] **Step 4: Add idempotent decision insert test**
+- [x] **Step 4: Add idempotent decision insert test**
 
 Use a `Decision` model instance. Insert twice. Assert only one row exists or the second insert returns `"ignored"` deterministically.
 
-- [ ] **Step 5: Implement `record_decision()`**
+- [x] **Step 5: Implement `record_decision()`**
 
 Serialize the Pydantic model with `model_dump_json()`. Enforce `decision_id UNIQUE`.
 
-- [ ] **Step 6: Add fill idempotency test**
+- [x] **Step 6: Add fill idempotency test**
 
 Insert one fill for a decision, insert same fill again, assert no double-count. Insert a different fill for the same decision and assert it is rejected.
 
-- [ ] **Step 7: Implement `record_fill()`**
+- [x] **Step 7: Implement `record_fill()`**
 
 Use `decision_id UNIQUE` in `paper_fills` until partial fills are explicitly supported.
 
-- [ ] **Step 8: Add transaction rollback test**
+- [x] **Step 8: Add transaction rollback test**
 
 Create a method `record_decision_and_fill(decision, fill)` where an invalid fill causes rollback. Assert neither record is stored.
 
-- [ ] **Step 9: Implement transaction wrapper**
+- [x] **Step 9: Implement transaction wrapper**
 
 Use `with connection:` so SQLite commits atomically or rolls back on exception.
 
-- [ ] **Step 10: Verify and commit**
+- [x] **Step 10: Verify and commit**
 
 Run:
 
