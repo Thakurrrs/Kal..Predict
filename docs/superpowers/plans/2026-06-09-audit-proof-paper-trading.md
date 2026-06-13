@@ -457,15 +457,15 @@ git commit -m "feat: add paper outcome pnl accounting"
 - Test: `tests/research/test_economics.py`
 - Test: `tests/research/test_source_cache.py`
 
-- [ ] **Step 1: Add fetcher cache-hit tests**
+- [x] **Step 1: Add fetcher cache-hit tests**
 
 For weather and economics, inject a `SourceCache`. Call `fetch()` twice. Assert the HTTP mock is called once and the second snapshot still contains source health.
 
-- [ ] **Step 2: Update fetcher constructors**
+- [x] **Step 2: Update fetcher constructors**
 
 Add optional `source_cache: SourceCache | None = None` and TTL config arguments.
 
-- [ ] **Step 3: Wrap NWS point/forecast and FRED observations calls**
+- [x] **Step 3: Wrap NWS point/forecast and FRED observations calls**
 
 Use cache keys:
 
@@ -473,7 +473,7 @@ Use cache keys:
 - `NWS:forecast_hourly:{url}`
 - `FRED:series_observations:{series_id}`
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run research tests and commit:
 

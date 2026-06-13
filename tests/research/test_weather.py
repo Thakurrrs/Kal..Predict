@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from kal_predict.models import MarketSnapshot
+from kal_predict.research.source_cache import SourceCache
 from kal_predict.research.weather import WeatherResearchFetcher
 
 NOW = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)
@@ -33,6 +34,15 @@ def make_fetcher(handler) -> WeatherResearchFetcher:
         base_url="https://api.weather.gov",
     )
     return WeatherResearchFetcher(http_client=client, now=lambda: NOW)
+
+
+def make_cached_fetcher(handler, tmp_path) -> WeatherResearchFetcher:
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.weather.gov",
+    )
+    cache = SourceCache(tmp_path / "paper.db", now=lambda: NOW.isoformat())
+    return WeatherResearchFetcher(http_client=client, now=lambda: NOW, source_cache=cache)
 
 
 @pytest.mark.asyncio
@@ -77,6 +87,51 @@ async def test_weather_fetcher_creates_usable_rain_research():
 
 
 @pytest.mark.asyncio
+async def test_weather_fetcher_uses_source_cache_on_second_fetch(tmp_path):
+    request_count = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        if request.url.path == "/points/40.7128,-74.0060":
+            return httpx.Response(
+                200,
+                json={
+                    "properties": {
+                        "forecastHourly": (
+                            "https://api.weather.gov/gridpoints/OKX/33,37/forecast/hourly"
+                        )
+                    }
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "properties": {
+                    "generatedAt": "2026-06-08T11:30:00+00:00",
+                    "periods": [
+                        {
+                            "startTime": "2026-06-09T10:00:00+00:00",
+                            "endTime": "2026-06-09T11:00:00+00:00",
+                            "probabilityOfPrecipitation": {"value": 70},
+                        }
+                    ],
+                }
+            },
+        )
+    fetcher = make_cached_fetcher(handler, tmp_path)
+    market = make_market("Will NYC get at least 0.10 inches of rain by Tuesday?")
+
+    first = await fetcher.fetch(market)
+    second = await fetcher.fetch(market)
+
+    assert first.usable is True
+    assert second.usable is True
+    assert second.source_health[0].source == "NWS"
+    assert request_count == 2
+
+
+@pytest.mark.asyncio
 async def test_weather_fetcher_skips_invalid_threshold_without_calling_nws():
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError("NWS should not be called when threshold parsing fails")
@@ -108,6 +163,21 @@ async def test_weather_fetcher_skips_nws_gridpoint_lookup_failure():
         return httpx.Response(404, json={"detail": "not found"})
 
     snapshot = await make_fetcher(handler).fetch(
+        make_market("Will NYC get at least 0.10 inches of rain by Tuesday?")
+    )
+
+    assert snapshot.usable is False
+    assert snapshot.skip_reason == "nws_gridpoint_lookup_failed"
+    assert snapshot.source_health[0].status == "failed"
+    assert snapshot.source_health[0].error_code == "gridpoint_lookup_failed"
+
+
+@pytest.mark.asyncio
+async def test_cached_weather_fetcher_preserves_gridpoint_lookup_failure(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"detail": "not found"})
+
+    snapshot = await make_cached_fetcher(handler, tmp_path).fetch(
         make_market("Will NYC get at least 0.10 inches of rain by Tuesday?")
     )
 

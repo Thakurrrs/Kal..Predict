@@ -8,6 +8,7 @@ import httpx
 
 from kal_predict.models import EvidenceItem, MarketSnapshot, ResearchSnapshot, Signal, SourceHealth
 from kal_predict.research.base import BaseResearchFetcher
+from kal_predict.research.source_cache import SourceCache
 
 
 class GridpointLookupError(Exception):
@@ -34,6 +35,8 @@ class WeatherResearchFetcher(BaseResearchFetcher):
         base_url: str = "https://api.weather.gov",
         max_forecast_age_seconds: int = 6 * 60 * 60,
         max_forecast_horizon_days: int = 7,
+        source_cache: SourceCache | None = None,
+        nws_cache_ttl_seconds: int = 1800,
     ) -> None:
         self._client = http_client or httpx.AsyncClient(
             base_url=base_url,
@@ -43,6 +46,8 @@ class WeatherResearchFetcher(BaseResearchFetcher):
         self._now = now or (lambda: datetime.now(timezone.utc))
         self._max_forecast_age_seconds = max_forecast_age_seconds
         self._max_forecast_horizon = timedelta(days=max_forecast_horizon_days)
+        self._source_cache = source_cache
+        self._nws_cache_ttl_seconds = nws_cache_ttl_seconds
 
     async def _fetch_unsafe(self, market: MarketSnapshot) -> ResearchSnapshot:
         parsed = self._parse_market(market)
@@ -157,15 +162,43 @@ class WeatherResearchFetcher(BaseResearchFetcher):
 
     async def _forecast_url(self, metadata: dict[str, object]) -> str:
         lat, lon = metadata["coordinates"]
-        response = await self._client.get(f"/points/{lat},{lon}")
-        if response.status_code >= 400:
-            raise GridpointLookupError
-        forecast_url = response.json().get("properties", {}).get("forecastHourly")
+        point_path = f"/points/{lat},{lon}"
+        if self._source_cache is None:
+            response = await self._client.get(point_path)
+            if response.status_code >= 400:
+                raise GridpointLookupError
+            point = response.json()
+        else:
+            result = await self._source_cache.get_or_fetch(
+                source="NWS",
+                cache_key=f"points:{lat},{lon}",
+                ttl_seconds=self._nws_cache_ttl_seconds,
+                fetch=lambda: self._get_point_json(point_path),
+            )
+            point = result.payload
+        forecast_url = point.get("properties", {}).get("forecastHourly")
         if not forecast_url:
             raise GridpointLookupError
         return forecast_url
 
+    async def _get_point_json(self, url: str) -> dict[str, object]:
+        response = await self._client.get(url)
+        if response.status_code >= 400:
+            raise GridpointLookupError
+        return response.json()
+
     async def _get_json(self, url: str) -> dict[str, object]:
+        if self._source_cache is not None and "/forecast/hourly" in url:
+            result = await self._source_cache.get_or_fetch(
+                source="NWS",
+                cache_key=f"forecast_hourly:{url}",
+                ttl_seconds=self._nws_cache_ttl_seconds,
+                fetch=lambda: self._get_uncached_json(url),
+            )
+            return result.payload
+        return await self._get_uncached_json(url)
+
+    async def _get_uncached_json(self, url: str) -> dict[str, object]:
         response = await self._client.get(url)
         response.raise_for_status()
         return response.json()

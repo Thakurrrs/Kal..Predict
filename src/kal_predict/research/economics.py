@@ -8,6 +8,7 @@ import httpx
 
 from kal_predict.models import EvidenceItem, MarketSnapshot, ResearchSnapshot, Signal, SourceHealth
 from kal_predict.research.base import BaseResearchFetcher
+from kal_predict.research.source_cache import SourceCache
 
 
 class EconomicsResearchFetcher(BaseResearchFetcher):
@@ -30,10 +31,14 @@ class EconomicsResearchFetcher(BaseResearchFetcher):
         fred_api_key: str | None = None,
         now=None,
         base_url: str = "https://api.stlouisfed.org",
+        source_cache: SourceCache | None = None,
+        fred_cache_ttl_seconds: int = 21600,
     ) -> None:
         self._client = http_client or httpx.AsyncClient(base_url=base_url, timeout=20.0)
         self._fred_api_key = fred_api_key
         self._now = now or (lambda: datetime.now(timezone.utc))
+        self._source_cache = source_cache
+        self._fred_cache_ttl_seconds = fred_cache_ttl_seconds
 
     async def _fetch_unsafe(self, market: MarketSnapshot) -> ResearchSnapshot:
         parsed = self._parse_market(market)
@@ -121,6 +126,17 @@ class EconomicsResearchFetcher(BaseResearchFetcher):
         )
 
     async def _fetch_observations(self, series_id: str) -> list[dict[str, str]]:
+        if self._source_cache is not None:
+            result = await self._source_cache.get_or_fetch(
+                source="FRED",
+                cache_key=f"series_observations:{series_id}",
+                ttl_seconds=self._fred_cache_ttl_seconds,
+                fetch=lambda: self._fetch_uncached_observations(series_id),
+            )
+            return result.payload
+        return await self._fetch_uncached_observations(series_id)
+
+    async def _fetch_uncached_observations(self, series_id: str) -> list[dict[str, str]]:
         response = await self._client.get(
             "/fred/series/observations",
             params={
