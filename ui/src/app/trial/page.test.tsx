@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 
 import TrialExchangePage from "./page";
-import * as api from "../../lib/api";
+import * as api from "@/lib/api";
 
 vi.mock("@/lib/api", () => ({
   fetchTrialMarkets: vi.fn(async () => ({

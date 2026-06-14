@@ -29,6 +29,12 @@ Modify:
 - `ui/src/app/trial/page.test.tsx`  
   Import the mocked API module through the same alias used by the page.
 
+- `.gitignore`  
+  Allow `ui/src/lib` source files to be tracked and ignore TypeScript build info.
+
+- `ui/tsconfig.json`  
+  Include Vitest global types so test files type-check with the project.
+
 - Python files reported by `ruff check src tests` and `mypy src`  
   Clean in targeted follow-up commits after functional blockers are fixed.
 
@@ -110,7 +116,7 @@ git commit -m "fix: store paper decision timestamps"
 - Create: `ui/src/lib/types.ts`
 - Modify: `ui/src/app/trial/page.test.tsx`
 
-- [ ] **Step 1: Run UI tests red**
+- [x] **Step 1: Run UI tests red**
 
 Run:
 
@@ -120,11 +126,11 @@ npm.cmd --prefix ui run test
 
 Expected: `src/app/trial/page.test.tsx` fails to resolve `../../lib/api` or pages fail to resolve `@/lib/api`.
 
-- [ ] **Step 2: Add shared UI types**
+- [x] **Step 2: Add shared UI types**
 
 Create `ui/src/lib/types.ts` with exported interfaces for health, markets, metrics, audit, decisions, trial markets, trial book, and trial decision traces used by the current pages.
 
-- [ ] **Step 3: Add API client**
+- [x] **Step 3: Add API client**
 
 Create `ui/src/lib/api.ts` with `fetchJson()` and exported functions:
 
@@ -143,7 +149,7 @@ placeTrialAutoBet
 runTrialScenarios
 ```
 
-- [ ] **Step 4: Fix trial test import**
+- [x] **Step 4: Fix trial test import**
 
 Change:
 
@@ -157,7 +163,7 @@ to:
 import * as api from "@/lib/api";
 ```
 
-- [ ] **Step 5: Run UI tests and TypeScript**
+- [x] **Step 5: Run UI tests and TypeScript**
 
 Run:
 
@@ -168,7 +174,7 @@ npx.cmd --prefix ui tsc --noEmit --project ui/tsconfig.json
 
 Expected: UI tests pass and TypeScript reports no project errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 
