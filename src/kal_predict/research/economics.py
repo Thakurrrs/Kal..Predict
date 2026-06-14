@@ -3,12 +3,18 @@
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Any, Callable, TypedDict
 
 import httpx
 
 from kal_predict.models import EvidenceItem, MarketSnapshot, ResearchSnapshot, Signal, SourceHealth
 from kal_predict.research.base import BaseResearchFetcher
 from kal_predict.research.source_cache import SourceCache
+
+
+class NumericObservation(TypedDict):
+    date: str
+    value: float
 
 
 class EconomicsResearchFetcher(BaseResearchFetcher):
@@ -29,7 +35,7 @@ class EconomicsResearchFetcher(BaseResearchFetcher):
         self,
         http_client: httpx.AsyncClient | None = None,
         fred_api_key: str | None = None,
-        now=None,
+        now: Callable[[], datetime] | None = None,
         base_url: str = "https://api.stlouisfed.org",
         source_cache: SourceCache | None = None,
         fred_cache_ttl_seconds: int = 21600,
@@ -149,7 +155,7 @@ class EconomicsResearchFetcher(BaseResearchFetcher):
         response.raise_for_status()
         return response.json().get("observations", [])
 
-    def _parse_market(self, market: MarketSnapshot) -> dict[str, object]:
+    def _parse_market(self, market: MarketSnapshot) -> dict[str, Any]:
         metadata: dict[str, object] = {}
         normalized = market.title.strip().lower()
         indicator_result = self._indicator(normalized)
@@ -206,10 +212,8 @@ class EconomicsResearchFetcher(BaseResearchFetcher):
             return "below"
         return "above"
 
-    def _numeric_observations(
-        self, observations: list[dict[str, str]]
-    ) -> list[dict[str, float | str]]:
-        values = []
+    def _numeric_observations(self, observations: list[dict[str, str]]) -> list[NumericObservation]:
+        values: list[NumericObservation] = []
         for observation in observations:
             try:
                 value = float(observation["value"])

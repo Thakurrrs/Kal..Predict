@@ -244,7 +244,7 @@ git commit -m "chore: clean python lint findings"
 - Modify: `src/kal_predict/api/app.py`
 - Modify tests only if type-only test imports are required.
 
-- [ ] **Step 1: Run mypy red**
+- [x] **Step 1: Run mypy red**
 
 Run:
 
@@ -254,23 +254,23 @@ Run:
 
 Expected before this task: type errors in the listed files.
 
-- [ ] **Step 2: Fix settings config typing**
+- [x] **Step 2: Fix settings config typing**
 
 Use `SettingsConfigDict` from `pydantic_settings` for `BaseSettings` classes in `config.py` instead of `ConfigDict`.
 
-- [ ] **Step 3: Fix model computed field ordering and long line**
+- [x] **Step 3: Fix model computed field ordering and long line**
 
 In `models.py`, use the Pydantic-supported decorator order for computed properties and wrap the long `skip_reason` field.
 
-- [ ] **Step 4: Add precise parsed metadata types**
+- [x] **Step 4: Add precise parsed metadata types**
 
 In weather/economics fetchers, replace broad `dict[str, object]` parser return access with typed helper values or casts so mypy can prove metadata and deadline types.
 
-- [ ] **Step 5: Fix remaining adapter/API/service typing**
+- [x] **Step 5: Fix remaining adapter/API/service typing**
 
 Narrow object values before numeric operations, annotate FastAPI app handlers, and align route return annotations with `JSONResponse` where needed.
 
-- [ ] **Step 6: Run mypy green**
+- [x] **Step 6: Run mypy green**
 
 Run:
 
@@ -280,7 +280,7 @@ Run:
 
 Expected: no type errors.
 
-- [ ] **Step 7: Run full Python verification and commit**
+- [x] **Step 7: Run full Python verification and commit**
 
 Run:
 

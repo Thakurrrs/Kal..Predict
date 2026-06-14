@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from pydantic import ConfigDict, Field
-from pydantic_settings import BaseSettings
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 ENV_FILE = Path(__file__).parent.parent.parent / ".env"
@@ -20,7 +20,7 @@ class OllamaConfig(BaseSettings):
     hands_model: str = Field(default="qwen2.5-coder:7b")
     timeout_seconds: int = Field(default=300)
 
-    model_config = ConfigDict(env_prefix="OLLAMA_")
+    model_config = SettingsConfigDict(env_prefix="OLLAMA_")
 
 
 class KalshiConfig(BaseSettings):
@@ -30,7 +30,7 @@ class KalshiConfig(BaseSettings):
     api_key_id: Optional[str] = Field(default=None)
     private_key_path: Optional[str] = Field(default=None)
 
-    model_config = ConfigDict(env_prefix="KALSHI_")
+    model_config = SettingsConfigDict(env_prefix="KALSHI_")
 
     @property
     def is_available(self) -> bool:
@@ -56,7 +56,7 @@ class NWSConfig(BaseSettings):
     base_url: str = Field(default="https://api.weather.gov")
     timeout_seconds: int = Field(default=30)
 
-    model_config = ConfigDict(env_prefix="NWS_")
+    model_config = SettingsConfigDict(env_prefix="NWS_")
 
 
 class FredConfig(BaseSettings):
@@ -66,7 +66,7 @@ class FredConfig(BaseSettings):
     base_url: str = Field(default="https://api.stlouisfed.org")
     timeout_seconds: int = Field(default=20)
 
-    model_config = ConfigDict(env_prefix="FRED_")
+    model_config = SettingsConfigDict(env_prefix="FRED_")
 
     @property
     def is_available(self) -> bool:
@@ -81,7 +81,7 @@ class BLSConfig(BaseSettings):
     base_url: str = Field(default="https://api.bls.gov")
     timeout_seconds: int = Field(default=20)
 
-    model_config = ConfigDict(env_prefix="BLS_")
+    model_config = SettingsConfigDict(env_prefix="BLS_")
 
 
 class PaperDataConfig(BaseSettings):
@@ -92,7 +92,7 @@ class PaperDataConfig(BaseSettings):
     nws_cache_ttl_seconds: int = Field(default=1800)
     fred_cache_ttl_seconds: int = Field(default=21600)
 
-    model_config = ConfigDict(env_prefix="PAPER_DATA_")
+    model_config = SettingsConfigDict(env_prefix="PAPER_DATA_")
 
 
 class PaperSizingConfig(BaseSettings):
@@ -108,7 +108,7 @@ class PaperSizingConfig(BaseSettings):
     longshot_price_threshold: float = Field(default=0.10)
     max_longshot_dollars: float = Field(default=25.0)
 
-    model_config = ConfigDict(env_prefix="PAPER_SIZING_")
+    model_config = SettingsConfigDict(env_prefix="PAPER_SIZING_")
 
 
 class SearchConfig(BaseSettings):
@@ -117,7 +117,7 @@ class SearchConfig(BaseSettings):
     searxng_base_url: str = Field(default="http://localhost:8888")
     searxng_timeout_seconds: int = Field(default=10)
 
-    model_config = ConfigDict(env_prefix="SEARXNG_", case_sensitive=False)
+    model_config = SettingsConfigDict(env_prefix="SEARXNG_", case_sensitive=False)
 
 
 class ExecutionConfig(BaseSettings):
@@ -131,7 +131,7 @@ class ExecutionConfig(BaseSettings):
     capital_usd: float = Field(default=10000.0)
     max_position_usd: float = Field(default=1000.0)
 
-    model_config = ConfigDict(env_prefix="EXECUTION_")
+    model_config = SettingsConfigDict(env_prefix="EXECUTION_")
 
 
 class RiskGateConfig(BaseSettings):
@@ -147,7 +147,7 @@ class RiskGateConfig(BaseSettings):
     estimated_fee_probability_equivalent: float = Field(default=0.0, ge=0.0)
     slippage_buffer: float = Field(default=0.0, ge=0.0)
 
-    model_config = ConfigDict(env_prefix="RISK_GATE_")
+    model_config = SettingsConfigDict(env_prefix="RISK_GATE_")
 
 
 class LoggingConfig(BaseSettings):
@@ -156,7 +156,7 @@ class LoggingConfig(BaseSettings):
     level: str = Field(default="INFO")
     format: str = Field(default="json")  # "json" or "text"
 
-    model_config = ConfigDict(env_prefix="LOG_")
+    model_config = SettingsConfigDict(env_prefix="LOG_")
 
 
 class AppConfig(BaseSettings):
@@ -175,7 +175,7 @@ class AppConfig(BaseSettings):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
     # Nested settings classes read from process env; unknown keys must not crash startup.
-    model_config = ConfigDict(extra="ignore")
+    model_config = SettingsConfigDict(extra="ignore")
 
 
 def load_config() -> AppConfig:

@@ -415,6 +415,7 @@ class DecisionEngine:
         daily_loss_pass = self.check_daily_loss_gate(daily_loss_so_far=daily_loss_so_far)
 
         all_gates_pass = confidence_pass and position_pass and daily_loss_pass
+        skip_reason: Optional[str]
 
         # Determine trade decision
         if not all_gates_pass:

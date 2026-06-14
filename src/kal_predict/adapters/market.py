@@ -16,6 +16,8 @@ from kal_predict.models import MarketSnapshot
 
 logger = get_logger(__name__)
 
+QueryParamValue = str | int | float | bool | None
+
 
 class MarketDataProvider(ABC):
     """Abstract base class for market data providers."""
@@ -160,12 +162,13 @@ class KalshiMarketDataProvider(MarketDataProvider):
         self._private_key_pem = private_key_pem
         self._base_url = base_url.rstrip("/")
         self._client = http_client or httpx.AsyncClient(base_url=self._base_url, timeout=20.0)
-        self._private_key = serialization.load_pem_private_key(
+        private_key = serialization.load_pem_private_key(
             private_key_pem.encode("utf-8"),
             password=None,
         )
-        if not isinstance(self._private_key, rsa.RSAPrivateKey):
+        if not isinstance(private_key, rsa.RSAPrivateKey):
             raise ValueError("Kalshi private key must be an RSA private key")
+        self._private_key: rsa.RSAPrivateKey = private_key
         logger.info(
             "KalshiMarketDataProvider initialized in read-only mode",
             extra={
@@ -177,12 +180,16 @@ class KalshiMarketDataProvider(MarketDataProvider):
     def _parse_decimal(self, value: object, default: float = 0.0) -> float:
         if value in (None, ""):
             return default
-        return float(value)
+        if isinstance(value, (str, int, float)):
+            return float(value)
+        return default
 
     def _parse_int_decimal(self, value: object, default: int = 0) -> int:
         if value in (None, ""):
             return default
-        return int(float(value))
+        if isinstance(value, (str, int, float)):
+            return int(float(value))
+        return default
 
     def _signed_headers(
         self,
@@ -211,7 +218,9 @@ class KalshiMarketDataProvider(MarketDataProvider):
             "KALSHI-ACCESS-SIGNATURE": base64.b64encode(signature).decode("ascii"),
         }
 
-    async def _get(self, path: str, params: Optional[dict[str, object]] = None) -> httpx.Response:
+    async def _get(
+        self, path: str, params: Optional[dict[str, QueryParamValue]] = None
+    ) -> httpx.Response:
         headers = self._signed_headers("GET", path)
         return await self._client.get(path, params=params, headers=headers)
 

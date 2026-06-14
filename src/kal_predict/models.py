@@ -23,13 +23,13 @@ class MarketSnapshot(BaseModel):
     liquidity: Optional[float] = Field(default=None, ge=0, description="Liquidity indicator")
     schema_version: int = Field(default=1, description="Contract version")
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def yes_mid(self) -> float:
         """Midpoint of executable YES bid/ask quotes."""
         return (self.yes_bid + self.yes_ask) / 2.0
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def spread(self) -> float:
         """YES bid/ask spread."""

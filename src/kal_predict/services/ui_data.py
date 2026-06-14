@@ -125,7 +125,7 @@ class UIDataService:
                 }
             )
 
-        latest_ts = items[0]["snapshot_timestamp"] if items else None
+        latest_ts = str(items[0]["snapshot_timestamp"]) if items else None
         return {
             "timestamp": utc_now_iso(),
             "freshness_seconds": freshness_seconds(latest_ts),
@@ -299,7 +299,7 @@ class UIDataService:
                     "snapshot_timestamp": snapshot.timestamp,
                 }
             )
-        latest_ts = items[0]["snapshot_timestamp"] if items else None
+        latest_ts = str(items[0]["snapshot_timestamp"]) if items else None
         return {
             "timestamp": utc_now_iso(),
             "freshness_seconds": freshness_seconds(latest_ts),
@@ -433,7 +433,7 @@ class UIDataService:
     ) -> dict[str, Any]:
         """Run bounded pre-key scenario simulations with paper-only semantics."""
         bounded = scenarios[:20]
-        summary = {
+        summary: dict[str, Any] = {
             "total": len(bounded),
             "pass": 0,
             "fail": 0,

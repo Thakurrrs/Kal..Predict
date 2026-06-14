@@ -3,6 +3,7 @@
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Any, Callable, cast
 
 import httpx
 
@@ -31,7 +32,7 @@ class WeatherResearchFetcher(BaseResearchFetcher):
     def __init__(
         self,
         http_client: httpx.AsyncClient | None = None,
-        now=None,
+        now: Callable[[], datetime] | None = None,
         base_url: str = "https://api.weather.gov",
         max_forecast_age_seconds: int = 6 * 60 * 60,
         max_forecast_horizon_days: int = 7,
@@ -77,7 +78,8 @@ class WeatherResearchFetcher(BaseResearchFetcher):
                 metadata=parsed["metadata"],
             )
         forecast = await self._get_json(forecast_url)
-        generated_at = self._parse_time(forecast.get("properties", {}).get("generatedAt"))
+        properties = cast(dict[str, Any], forecast.get("properties", {}))
+        generated_at = self._parse_time(properties.get("generatedAt"))
         if generated_at is None:
             return self._snapshot(
                 market,
@@ -102,7 +104,7 @@ class WeatherResearchFetcher(BaseResearchFetcher):
             )
 
         period = self._period_for_deadline(
-            forecast.get("properties", {}).get("periods", []),
+            properties.get("periods", []),
             parsed["deadline"],
         )
         if period is None:
@@ -116,7 +118,8 @@ class WeatherResearchFetcher(BaseResearchFetcher):
                 metadata=parsed["metadata"],
             )
 
-        probability = period.get("probabilityOfPrecipitation", {}).get("value")
+        precipitation = cast(dict[str, Any], period.get("probabilityOfPrecipitation", {}))
+        probability = precipitation.get("value")
         if probability is None:
             return self._snapshot(
                 market,
@@ -135,7 +138,7 @@ class WeatherResearchFetcher(BaseResearchFetcher):
             source="NWS",
             url=forecast_url,
             retrieved_at=self._now().isoformat(),
-            event_time=period.get("startTime", parsed["deadline"].isoformat()),
+            event_time=self._event_time(period, parsed["deadline"]),
             claim=f"NWS precipitation probability is {probability}%.",
             confidence_hint=confidence,
             reliability_score=0.8,
@@ -161,7 +164,7 @@ class WeatherResearchFetcher(BaseResearchFetcher):
         )
 
     async def _forecast_url(self, metadata: dict[str, object]) -> str:
-        lat, lon = metadata["coordinates"]
+        lat, lon = cast(tuple[str, str], metadata["coordinates"])
         point_path = f"/points/{lat},{lon}"
         if self._source_cache is None:
             response = await self._client.get(point_path)
@@ -203,7 +206,7 @@ class WeatherResearchFetcher(BaseResearchFetcher):
         response.raise_for_status()
         return response.json()
 
-    def _parse_market(self, market: MarketSnapshot) -> dict[str, object]:
+    def _parse_market(self, market: MarketSnapshot) -> dict[str, Any]:
         metadata: dict[str, object] = {"metric": "rain"}
         normalized = market.title.strip().lower()
         location = self._location(normalized)
@@ -256,6 +259,12 @@ class WeatherResearchFetcher(BaseResearchFetcher):
             if start is not None and start <= deadline:
                 return period
         return None
+
+    def _event_time(self, period: dict[str, object], fallback: datetime) -> str:
+        start_time = period.get("startTime")
+        if isinstance(start_time, str):
+            return start_time
+        return fallback.isoformat()
 
     def _snapshot(
         self,
