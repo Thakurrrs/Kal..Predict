@@ -77,6 +77,19 @@ def test_record_decision_is_idempotent_by_decision_id(tmp_path):
     assert store.count_rows("decisions") == 1
 
 
+def test_record_decision_stores_created_at_timestamp(tmp_path):
+    store = PaperStore(tmp_path / "paper.db")
+    store.initialize()
+
+    store.record_decision(make_decision())
+
+    with store._connect() as connection:
+        row = connection.execute("SELECT created_at FROM decisions").fetchone()
+
+    assert row[0] != "trace-1"
+    assert row[0].endswith("+00:00")
+
+
 def test_record_fill_prevents_duplicate_fill_for_decision(tmp_path):
     store = PaperStore(tmp_path / "paper.db")
     store.initialize()

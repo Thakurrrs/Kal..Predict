@@ -2,6 +2,7 @@
 
 import json
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -132,7 +133,7 @@ class PaperStore:
                 decision.market_id,
                 decision.trace_id,
                 decision.model_dump_json(),
-                decision.trace_id,
+                datetime.now(timezone.utc).isoformat(),
             ),
         )
         return "inserted" if cursor.rowcount == 1 else "ignored"
