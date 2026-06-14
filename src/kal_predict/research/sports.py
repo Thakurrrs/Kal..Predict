@@ -4,9 +4,9 @@ Sports is observation-only by default. This fetcher only structures narrow
 World Cup soccer match-winner markets and never enables paper trading itself.
 """
 
-from datetime import datetime, timedelta, timezone
 import re
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from kal_predict.models import MarketSnapshot, ResearchSnapshot, Signal, SourceHealth
 from kal_predict.research.base import BaseResearchFetcher

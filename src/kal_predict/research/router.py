@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 
 from kal_predict.models import MarketSnapshot
 
-
 KEYWORD_MAP: dict[str, tuple[str, ...]] = {
     "economics": (
         "cpi",

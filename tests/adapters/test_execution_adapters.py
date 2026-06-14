@@ -4,12 +4,12 @@ from datetime import datetime, timezone
 
 import pytest
 
-from kal_predict.config import ExecutionConfig
 from kal_predict.adapters.execution import (
     ExecutionProvider,
     MockExecutionProvider,
     PaperExecutionProvider,
 )
+from kal_predict.config import ExecutionConfig
 from kal_predict.models import TradeIntent
 
 

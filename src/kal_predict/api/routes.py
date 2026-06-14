@@ -1,9 +1,10 @@
 """Read-only UI routes."""
 
+from typing import Literal, Optional
+
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from typing import Literal, Optional
 
 from kal_predict.api.state import get_ui_service
 from kal_predict.services.ui_data import UIDataService

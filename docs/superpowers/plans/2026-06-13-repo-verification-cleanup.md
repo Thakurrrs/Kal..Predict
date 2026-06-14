@@ -190,7 +190,7 @@ git commit -m "fix: restore ui api contract"
 **Files:**
 - Modify only files reported by `.\.venv\Scripts\ruff.exe check src tests`
 
-- [ ] **Step 1: Run Ruff red**
+- [x] **Step 1: Run Ruff red**
 
 Run:
 
@@ -200,7 +200,7 @@ Run:
 
 Expected before this task: import-order and line-length failures.
 
-- [ ] **Step 2: Apply mechanical formatting**
+- [x] **Step 2: Apply mechanical formatting**
 
 Run:
 
@@ -210,7 +210,7 @@ Run:
 
 Then manually wrap any remaining `E501` lines.
 
-- [ ] **Step 3: Run Ruff green**
+- [x] **Step 3: Run Ruff green**
 
 Run:
 
@@ -220,7 +220,7 @@ Run:
 
 Expected: `All checks passed!`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Run:
 

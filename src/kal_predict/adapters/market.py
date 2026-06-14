@@ -1,9 +1,9 @@
 """Abstract and concrete market data provider implementations."""
 
 import base64
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
-import time
 from typing import Optional
 
 import httpx

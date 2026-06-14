@@ -66,7 +66,9 @@ async def test_sports_fetcher_skips_ambiguous_team_parse():
 async def test_sports_fetcher_skips_unsupported_market_type():
     fetcher = SportsResearchFetcher()
 
-    snapshot = await fetcher.fetch(make_market("Will Argentina score 3 goals vs Brazil in the World Cup?"))
+    snapshot = await fetcher.fetch(
+        make_market("Will Argentina score 3 goals vs Brazil in the World Cup?")
+    )
 
     assert snapshot.usable is False
     assert snapshot.skip_reason == "unsupported_market_type"

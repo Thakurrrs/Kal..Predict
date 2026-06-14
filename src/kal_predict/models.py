@@ -118,7 +118,9 @@ class Decision(BaseModel):
     decision: str = Field(..., description="'NO_TRADE', 'BUY_YES', 'BUY_NO'")
     trace_id: str = Field(..., description="Correlation ID for audit trail")
     category: str = Field(default="unknown", description="Research category")
-    skip_reason: Optional[str] = Field(default=None, description="Primary deterministic skip reason")
+    skip_reason: Optional[str] = Field(
+        default=None, description="Primary deterministic skip reason"
+    )
     gate_results: dict[str, str] = Field(
         default_factory=dict, description="Per-gate PASS/FAIL audit details"
     )
