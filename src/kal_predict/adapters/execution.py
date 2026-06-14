@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from kal_predict.config import ExecutionConfig
 from kal_predict.logging_setup import get_logger
 from kal_predict.models import TradeIntent
 
@@ -67,8 +68,9 @@ class PaperExecutionProvider(ExecutionProvider):
     Rejects live mode trades (fail-closed constraint).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, execution_config: Optional[ExecutionConfig] = None) -> None:
         """Initialize paper execution provider."""
+        self._execution_config = execution_config or ExecutionConfig()
         # positions: market_id -> {size, avg_price, pnl}
         self._positions: dict[str, dict[str, float]] = {}
         # trades: list of all fills with full details
@@ -95,14 +97,35 @@ class PaperExecutionProvider(ExecutionProvider):
         Returns:
             Fill dict if successful and mode=paper, None if mode=live or cannot fill
         """
-        # Fail-closed: reject live mode
-        if intent.mode != "paper":
+        # Fail-closed: reject live mode unless explicitly enabled. Even when enabled,
+        # this paper provider does not submit live orders.
+        if intent.mode == "live":
+            live_allowed = (
+                self._execution_config.mode == "live"
+                and self._execution_config.live_trading_enabled
+            )
             logger.error(
-                "Trade execution blocked: live mode not allowed until Saturday",
+                "Trade execution blocked: live mode not available in paper provider",
                 extra={
                     "event_type": "execution_blocked",
                     "actor": "paper_execution_provider",
-                    "reason": "live_mode_disabled",
+                    "reason": (
+                        "paper_provider_live_not_supported"
+                        if live_allowed
+                        else "live_mode_disabled"
+                    ),
+                    "mode": intent.mode,
+                    "trace_id": intent.trace_id,
+                },
+            )
+            return None
+        if intent.mode != "paper":
+            logger.error(
+                "Trade execution blocked: unsupported execution mode",
+                extra={
+                    "event_type": "execution_blocked",
+                    "actor": "paper_execution_provider",
+                    "reason": "unsupported_mode",
                     "mode": intent.mode,
                     "trace_id": intent.trace_id,
                 },

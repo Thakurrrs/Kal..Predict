@@ -1,4 +1,12 @@
-from kal_predict.config import KalshiConfig, OllamaConfig, load_config
+from kal_predict.config import (
+    ExecutionConfig,
+    FredConfig,
+    KalshiConfig,
+    OllamaConfig,
+    PaperDataConfig,
+    PaperSizingConfig,
+    load_config,
+)
 
 
 def test_ollama_config_from_env(monkeypatch):
@@ -26,8 +34,78 @@ def test_kalshi_available_checks_credentials(monkeypatch):
     assert config.is_available is True
 
 
+def test_kalshi_base_url_from_env(monkeypatch):
+    """Kalshi API host is configurable for production/demo environments."""
+    monkeypatch.setenv("KALSHI_BASE_URL", "https://example.kalshi.test")
+
+    config = KalshiConfig()
+
+    assert config.base_url == "https://example.kalshi.test"
+
+
+def test_fred_config_api_key_from_env(monkeypatch):
+    """FRED key and host are configurable for economics research."""
+    monkeypatch.setenv("FRED_API_KEY", "fred-test-key")
+    monkeypatch.setenv("FRED_BASE_URL", "https://fred.example.test")
+
+    config = FredConfig()
+
+    assert config.api_key == "fred-test-key"
+    assert config.base_url == "https://fred.example.test"
+    assert config.is_available is True
+
+
+def test_paper_data_config_from_env(monkeypatch):
+    """Paper data path and source-cache TTLs are runtime configurable."""
+    monkeypatch.setenv("PAPER_DATA_DATABASE_PATH", "data/test-paper.db")
+    monkeypatch.setenv("PAPER_DATA_NWS_CACHE_TTL_SECONDS", "1200")
+    monkeypatch.setenv("PAPER_DATA_FRED_CACHE_TTL_SECONDS", "7200")
+
+    config = PaperDataConfig()
+
+    assert config.database_path == "data/test-paper.db"
+    assert config.nws_cache_ttl_seconds == 1200
+    assert config.fred_cache_ttl_seconds == 7200
+
+
+def test_paper_sizing_config_from_env(monkeypatch):
+    """Paper sizing risk caps are runtime configurable."""
+    monkeypatch.setenv("PAPER_SIZING_BANKROLL_USD", "5000")
+    monkeypatch.setenv("PAPER_SIZING_MAX_DOLLARS_PER_TRADE", "75")
+
+    config = PaperSizingConfig()
+
+    assert config.bankroll_usd == 5000.0
+    assert config.max_dollars_per_trade == 75.0
+
+
 def test_load_config_succeeds():
     """Test that load_config() initializes successfully."""
     config = load_config()
     assert config.ollama.base_url is not None
     assert config.execution.mode in ("paper", "live")
+
+
+def test_execution_config_defaults_keep_live_disabled():
+    """Execution defaults must favor paper trading and require 200 resolved trades."""
+    config = ExecutionConfig()
+
+    assert config.mode == "paper"
+    assert config.paper_trading_enabled is True
+    assert config.live_trading_enabled is False
+    assert config.promotion_required_resolved_trades == 200
+
+
+def test_execution_config_env_overrides(monkeypatch):
+    """Execution safety controls can be overridden only via explicit env vars."""
+    monkeypatch.setenv("EXECUTION_MODE", "live")
+    monkeypatch.setenv("EXECUTION_LIVE_TRADING_ENABLED", "true")
+    monkeypatch.setenv("EXECUTION_PAPER_TRADING_ENABLED", "false")
+    monkeypatch.setenv("EXECUTION_PROMOTION_REQUIRED_RESOLVED_TRADES", "250")
+
+    config = ExecutionConfig()
+
+    assert config.mode == "live"
+    assert config.live_trading_enabled is True
+    assert config.paper_trading_enabled is False
+    assert config.promotion_required_resolved_trades == 250

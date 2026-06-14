@@ -1,9 +1,10 @@
 """Read-only UI routes."""
 
+from typing import Any, Literal, Optional
+
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from typing import Literal, Optional
 
 from kal_predict.api.state import get_ui_service
 from kal_predict.services.ui_data import UIDataService
@@ -107,7 +108,7 @@ async def trial_book(service: UIDataService = Depends(get_ui_service)) -> dict:
 async def trial_manual_bet(
     payload: TrialManualBetRequest,
     service: UIDataService = Depends(get_ui_service),
-) -> dict:
+) -> Any:
     result = await service.trial_manual_bet(
         market_id=payload.market_id,
         side=payload.side,
@@ -122,7 +123,7 @@ async def trial_manual_bet(
 async def trial_auto_bet(
     payload: TrialAutoBetRequest,
     service: UIDataService = Depends(get_ui_service),
-) -> dict:
+) -> Any:
     result = await service.trial_auto_bet(
         market_id=payload.market_id,
         contracts=payload.contracts,

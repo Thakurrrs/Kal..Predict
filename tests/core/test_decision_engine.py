@@ -118,6 +118,64 @@ class TestGapComputation:
         gap = decision_engine.compute_gap(our_estimate=0.0, market_price=1.0)
         assert gap == pytest.approx(-1.0, abs=0.001)
 
+    def test_compute_side_edges_uses_executable_asks(
+        self, decision_engine: DecisionEngine, sample_market_snapshot: MarketSnapshot
+    ):
+        """Profit-first edge uses ask prices, not midpoint prices."""
+        edges = decision_engine.compute_side_edges(
+            market_snapshot=sample_market_snapshot,
+            probability_yes=0.50,
+        )
+
+        assert edges["YES"] == pytest.approx(0.08, abs=0.001)
+        assert edges["NO"] == pytest.approx(-0.10, abs=0.001)
+
+    def test_choose_trade_side_prefers_best_positive_executable_edge(
+        self, decision_engine: DecisionEngine
+    ):
+        """The engine chooses the better positive edge after ask-price comparison."""
+        market_snapshot = MarketSnapshot(
+            market_id="test-market-no-edge",
+            timestamp="2026-04-24T10:00:00Z",
+            yes_bid=0.70,
+            yes_ask=0.72,
+            no_bid=0.28,
+            no_ask=0.30,
+            volume=1000,
+        )
+
+        side, edge, price = decision_engine.choose_trade_side(
+            market_snapshot=market_snapshot,
+            probability_yes=0.55,
+            min_edge=0.05,
+        )
+
+        assert side == "NO"
+        assert edge == pytest.approx(0.15, abs=0.001)
+        assert price == pytest.approx(0.30, abs=0.001)
+
+    def test_choose_trade_side_skips_midpoint_only_edge(self, decision_engine: DecisionEngine):
+        """Midpoint edge is not enough when executable ask removes the advantage."""
+        market_snapshot = MarketSnapshot(
+            market_id="test-market-midpoint-only",
+            timestamp="2026-04-24T10:00:00Z",
+            yes_bid=0.48,
+            yes_ask=0.58,
+            no_bid=0.42,
+            no_ask=0.52,
+            volume=1000,
+        )
+
+        side, edge, price = decision_engine.choose_trade_side(
+            market_snapshot=market_snapshot,
+            probability_yes=0.55,
+            min_edge=0.05,
+        )
+
+        assert side is None
+        assert edge == pytest.approx(-0.03, abs=0.001)
+        assert price == pytest.approx(0.58, abs=0.001)
+
 
 class TestConfidenceGate:
     """Tests for confidence (min_confidence) risk gate."""
@@ -172,6 +230,125 @@ class TestPositionSizeGate:
         assert result is True
 
 
+class TestMarketQualityGate:
+    """Tests for deterministic pre-research market quality gates."""
+
+    def test_market_quality_passes_liquid_open_market(self, decision_engine: DecisionEngine):
+        market = MarketSnapshot(
+            market_id="quality-pass",
+            timestamp="2026-06-08T12:00:00Z",
+            yes_bid=0.40,
+            yes_ask=0.42,
+            no_bid=0.58,
+            no_ask=0.60,
+            volume=1000,
+            status="open",
+            close_time="2026-06-08T18:00:00Z",
+            liquidity=500.0,
+        )
+
+        passed, reason, gates = decision_engine.check_market_quality(
+            market, now_iso="2026-06-08T12:00:00Z"
+        )
+
+        assert passed is True
+        assert reason is None
+        assert all(result == "PASS" for result in gates.values())
+
+    def test_market_quality_skips_closed_market(self, decision_engine: DecisionEngine):
+        market = MarketSnapshot(
+            market_id="quality-closed",
+            timestamp="2026-06-08T12:00:00Z",
+            yes_bid=0.40,
+            yes_ask=0.42,
+            no_bid=0.58,
+            no_ask=0.60,
+            volume=1000,
+            status="closed",
+        )
+
+        passed, reason, gates = decision_engine.check_market_quality(market)
+
+        assert passed is False
+        assert reason == "market_not_open"
+        assert gates["market_open"] == "FAIL"
+
+    def test_market_quality_skips_missing_quotes(self, decision_engine: DecisionEngine):
+        market = MarketSnapshot(
+            market_id="quality-no-quotes",
+            timestamp="2026-06-08T12:00:00Z",
+            yes_bid=0.0,
+            yes_ask=0.0,
+            no_bid=0.0,
+            no_ask=0.0,
+            volume=1000,
+            status="open",
+        )
+
+        passed, reason, gates = decision_engine.check_market_quality(market)
+
+        assert passed is False
+        assert reason == "quotes_missing"
+        assert gates["quotes_present"] == "FAIL"
+
+    def test_market_quality_skips_wide_spread(self, decision_engine: DecisionEngine):
+        market = MarketSnapshot(
+            market_id="quality-wide-spread",
+            timestamp="2026-06-08T12:00:00Z",
+            yes_bid=0.40,
+            yes_ask=0.60,
+            no_bid=0.40,
+            no_ask=0.60,
+            volume=1000,
+            status="open",
+        )
+
+        passed, reason, gates = decision_engine.check_market_quality(market)
+
+        assert passed is False
+        assert reason == "spread_too_wide"
+        assert gates["spread_acceptable"] == "FAIL"
+
+    def test_market_quality_skips_low_volume(self, decision_engine: DecisionEngine):
+        market = MarketSnapshot(
+            market_id="quality-low-volume",
+            timestamp="2026-06-08T12:00:00Z",
+            yes_bid=0.40,
+            yes_ask=0.42,
+            no_bid=0.58,
+            no_ask=0.60,
+            volume=0,
+            status="open",
+        )
+
+        passed, reason, gates = decision_engine.check_market_quality(market)
+
+        assert passed is False
+        assert reason == "volume_too_low"
+        assert gates["volume_acceptable"] == "FAIL"
+
+    def test_market_quality_skips_too_close_to_close(self, decision_engine: DecisionEngine):
+        market = MarketSnapshot(
+            market_id="quality-close-soon",
+            timestamp="2026-06-08T12:00:00Z",
+            yes_bid=0.40,
+            yes_ask=0.42,
+            no_bid=0.58,
+            no_ask=0.60,
+            volume=1000,
+            status="open",
+            close_time="2026-06-08T12:05:00Z",
+        )
+
+        passed, reason, gates = decision_engine.check_market_quality(
+            market, now_iso="2026-06-08T12:00:00Z"
+        )
+
+        assert passed is False
+        assert reason == "close_time_too_soon"
+        assert gates["close_time_acceptable"] == "FAIL"
+
+
 class TestDailyLossGate:
     """Tests for daily loss limit risk gate."""
 
@@ -199,6 +376,124 @@ class TestDailyLossGate:
         assert result is True
 
 
+class TestPaperDecisionGates:
+    """Tests for full deterministic paper decision gate traces."""
+
+    def test_evaluate_paper_decision_records_research_unusable_gate(
+        self, decision_engine: DecisionEngine, sample_market_snapshot: MarketSnapshot
+    ):
+        market = sample_market_snapshot.model_copy(update={"status": "open"})
+        decision = decision_engine.evaluate_paper_decision(
+            market_snapshot=market,
+            probability_yes=0.65,
+            category="weather",
+            research_usable=False,
+            source_fresh=True,
+            llm_parse_ok=True,
+            confidence_ok=True,
+            signal_count=2,
+            signals_conflict=False,
+            sizing_contracts=10,
+            enabled_for_paper=True,
+        )
+
+        assert decision.risk_gate_result == "FAIL"
+        assert decision.decision == "NO_TRADE"
+        assert decision.skip_reason == "research_unusable"
+        assert decision.gate_results["research_usable"] == "FAIL"
+        assert decision.gate_results["category_supported"] == "PASS"
+
+    @pytest.mark.parametrize(
+        ("override", "expected_gate", "expected_reason"),
+        [
+            ({"market_status": "closed"}, "market_open", "market_not_open"),
+            ({"yes_bid": 0.0, "yes_ask": 0.0}, "quotes_present", "quotes_missing"),
+            ({"yes_bid": 0.40, "yes_ask": 0.70}, "spread_acceptable", "spread_too_wide"),
+            ({"liquidity": 0.0, "min_liquidity": 1.0}, "liquidity_acceptable", "liquidity_too_low"),
+            ({"category": "unknown"}, "category_supported", "category_unsupported"),
+            (
+                {"enabled_for_paper": False},
+                "category_enabled_for_paper",
+                "category_disabled_for_paper",
+            ),
+            ({"research_usable": False}, "research_usable", "research_unusable"),
+            ({"source_fresh": False}, "source_freshness_acceptable", "source_stale"),
+            ({"llm_parse_ok": False}, "llm_parse_ok", "llm_parse_failed"),
+            ({"confidence_ok": False}, "confidence_acceptable", "confidence_too_low"),
+            ({"signal_count": 0}, "signal_count_acceptable", "insufficient_signals"),
+            ({"signals_conflict": True}, "confluence_acceptable", "signals_conflict"),
+            ({"probability_yes": 0.45}, "net_edge_acceptable", "net_edge_below_threshold"),
+            ({"sizing_contracts": 0}, "sizing_above_minimum", "sizing_below_minimum"),
+            (
+                {"daily_trade_count_ok": False},
+                "daily_trade_count_acceptable",
+                "daily_trade_limit_reached",
+            ),
+            (
+                {"daily_exposure_ok": False},
+                "daily_exposure_acceptable",
+                "daily_exposure_limit_reached",
+            ),
+            (
+                {"category_exposure_ok": False},
+                "category_exposure_acceptable",
+                "category_exposure_limit_reached",
+            ),
+            (
+                {"series_exposure_ok": False},
+                "series_exposure_acceptable",
+                "series_exposure_limit_reached",
+            ),
+        ],
+    )
+    def test_evaluate_paper_decision_first_failed_gate_is_skip_reason(
+        self,
+        decision_engine: DecisionEngine,
+        sample_market_snapshot: MarketSnapshot,
+        override: dict[str, object],
+        expected_gate: str,
+        expected_reason: str,
+    ):
+        market_kwargs = {
+            "market_id": "paper-gate-market",
+            "timestamp": "2026-06-09T12:00:00Z",
+            "yes_bid": override.get("yes_bid", 0.40),
+            "yes_ask": override.get("yes_ask", 0.42),
+            "no_bid": override.get("no_bid", 0.58),
+            "no_ask": override.get("no_ask", 0.60),
+            "volume": 1000,
+            "status": override.get("market_status", "open"),
+            "liquidity": override.get("liquidity", 100.0),
+        }
+        market = MarketSnapshot(**market_kwargs)
+        decision_engine.config.risk_gate.min_market_liquidity = override.get(
+            "min_liquidity", 0.0
+        )
+
+        decision = decision_engine.evaluate_paper_decision(
+            market_snapshot=market,
+            probability_yes=override.get("probability_yes", 0.65),
+            category=override.get("category", "weather"),
+            research_usable=override.get("research_usable", True),
+            source_fresh=override.get("source_fresh", True),
+            llm_parse_ok=override.get("llm_parse_ok", True),
+            confidence_ok=override.get("confidence_ok", True),
+            signal_count=override.get("signal_count", 2),
+            signals_conflict=override.get("signals_conflict", False),
+            sizing_contracts=override.get("sizing_contracts", 10),
+            enabled_for_paper=override.get("enabled_for_paper", True),
+            daily_trade_count_ok=override.get("daily_trade_count_ok", True),
+            daily_exposure_ok=override.get("daily_exposure_ok", True),
+            category_exposure_ok=override.get("category_exposure_ok", True),
+            series_exposure_ok=override.get("series_exposure_ok", True),
+        )
+
+        assert decision.risk_gate_result == "FAIL"
+        assert decision.decision == "NO_TRADE"
+        assert decision.skip_reason == expected_reason
+        assert decision.gate_results[expected_gate] == "FAIL"
+
+
 class TestEvaluateTrade:
     """Integration tests for full trade evaluation with all gates."""
 
@@ -206,9 +501,9 @@ class TestEvaluateTrade:
         self, decision_engine: DecisionEngine, sample_market_snapshot: MarketSnapshot
     ):
         """Test trade evaluation with all gates passing and positive edge (BUY_YES)."""
-        # Market price: (0.40 + 0.42) / 2 = 0.41
+        # Executable YES price: 0.42
         # Our probability: 0.65
-        # Edge: 0.65 - 0.41 = 0.24 (> 0.05 threshold, should BUY_YES)
+        # Edge: 0.65 - 0.42 = 0.23 (> 0.05 threshold, should BUY_YES)
         our_probability = 0.65
 
         decision = decision_engine.evaluate_trade(
@@ -219,7 +514,7 @@ class TestEvaluateTrade:
 
         assert decision.decision == "BUY_YES"
         assert decision.risk_gate_result == "PASS"
-        assert decision.edge == pytest.approx(0.24, abs=0.001)
+        assert decision.edge == pytest.approx(0.23, abs=0.001)
         assert decision.mixed_probability == pytest.approx(0.65, abs=0.001)
 
     def test_evaluate_trade_all_gates_pass_buy_no(self, decision_engine: DecisionEngine):
@@ -228,10 +523,10 @@ class TestEvaluateTrade:
         For BUY_NO to trigger:
         - Our probability must be high enough to pass confidence gate (>= 0.55)
         - Market must price YES higher than our estimate
-        - Edge must be <= -gap_threshold_pct
+        - NO ask edge must be >= gap_threshold_pct
 
-        Setup: Market prices YES at 0.76, we estimate 0.60 (confident but lower)
-        Edge: 0.60 - 0.76 = -0.16 (< -0.05, triggers BUY_NO)
+        Setup: Market prices NO at 0.25, we estimate P(NO)=0.40
+        Edge: 0.40 - 0.25 = 0.15, triggers BUY_NO
         """
         market_snapshot = MarketSnapshot(
             market_id="test-market-1",
@@ -252,22 +547,94 @@ class TestEvaluateTrade:
 
         assert decision.decision == "BUY_NO"
         assert decision.risk_gate_result == "PASS"
-        # Market price = (0.75 + 0.77) / 2 = 0.76
-        # Edge = 0.60 - 0.76 = -0.16
-        assert decision.edge == pytest.approx(-0.16, abs=0.001)
+        assert decision.edge == pytest.approx(0.15, abs=0.001)
+        assert decision.market_implied_probability == pytest.approx(0.25, abs=0.001)
+
+    def test_evaluate_trade_selects_no_when_no_ask_edge_is_best(
+        self, decision_engine: DecisionEngine
+    ):
+        """BUY_NO uses NO ask edge, not negative YES midpoint divergence."""
+        market_snapshot = MarketSnapshot(
+            market_id="test-no-ask-edge",
+            timestamp="2026-04-24T10:00:00Z",
+            yes_bid=0.68,
+            yes_ask=0.70,
+            no_bid=0.28,
+            no_ask=0.30,
+            volume=1000,
+        )
+
+        decision = decision_engine.evaluate_trade(
+            market_snapshot=market_snapshot,
+            our_probability=0.55,
+            gap_threshold_pct=0.05,
+        )
+
+        assert decision.decision == "BUY_NO"
+        assert decision.risk_gate_result == "PASS"
+        assert decision.edge == pytest.approx(0.15, abs=0.001)
+        assert decision.market_implied_probability == pytest.approx(0.30, abs=0.001)
+
+    def test_evaluate_trade_skips_when_only_midpoint_edge_exists(
+        self, decision_engine: DecisionEngine
+    ):
+        """Midpoint edge must not trigger a trade when executable asks remove edge."""
+        market_snapshot = MarketSnapshot(
+            market_id="test-midpoint-only",
+            timestamp="2026-04-24T10:00:00Z",
+            yes_bid=0.45,
+            yes_ask=0.65,
+            no_bid=0.35,
+            no_ask=0.55,
+            volume=1000,
+        )
+
+        decision = decision_engine.evaluate_trade(
+            market_snapshot=market_snapshot,
+            our_probability=0.55,
+            gap_threshold_pct=0.05,
+        )
+
+        assert decision.decision == "NO_TRADE"
+        assert decision.risk_gate_result == "PASS"
+        assert decision.skip_reason == "net_edge_below_threshold"
+        assert decision.edge == pytest.approx(-0.10, abs=0.001)
+
+    def test_evaluate_trade_skips_when_fees_erase_executable_edge(
+        self, config: AppConfig
+    ):
+        """Fees and slippage reduce edge before the edge gate can pass."""
+        config.risk_gate.estimated_fee_probability_equivalent = 0.03
+        config.risk_gate.slippage_buffer = 0.02
+        decision_engine = DecisionEngine(config)
+        market_snapshot = MarketSnapshot(
+            market_id="test-fees-erase-edge",
+            timestamp="2026-04-24T10:00:00Z",
+            yes_bid=0.44,
+            yes_ask=0.50,
+            no_bid=0.50,
+            no_ask=0.56,
+            volume=1000,
+        )
+
+        decision = decision_engine.evaluate_trade(
+            market_snapshot=market_snapshot,
+            our_probability=0.55,
+            gap_threshold_pct=0.05,
+        )
+
+        assert decision.decision == "NO_TRADE"
+        assert decision.risk_gate_result == "PASS"
+        assert decision.skip_reason == "net_edge_below_threshold"
+        assert decision.edge == pytest.approx(0.0, abs=0.001)
 
     def test_evaluate_trade_all_gates_pass_insufficient_edge(self, decision_engine: DecisionEngine):
         """Test trade evaluation passes all gates but edge insufficient (NO_TRADE).
 
-        Setup: Market prices YES at 0.50, we estimate 0.52 (confidence passes)
-        Edge: 0.52 - 0.50 = 0.02 (< 0.05 threshold, insufficient for trade)
-        But confidence gate passes (0.52 >= 0.55? No, this also fails)
-
-        Use 0.56 instead:
-        Edge: 0.56 - 0.50 = 0.06... wait that's > 0.05.
-
-        Let's use market at 0.52, our estimate at 0.55:
-        Edge: 0.55 - 0.52 = 0.03 (< 0.05, NO_TRADE with PASS)
+        Setup: Market prices YES at 0.53, we estimate 0.55 (confidence passes)
+        Edge: 0.55 - 0.53 = 0.02 (< 0.05 threshold, insufficient for trade)
+        Let's use YES ask at 0.53, our estimate at 0.55:
+        Edge: 0.55 - 0.53 = 0.02 (< 0.05, NO_TRADE with PASS)
         """
         market_snapshot = MarketSnapshot(
             market_id="test-market-1",
@@ -288,9 +655,7 @@ class TestEvaluateTrade:
 
         assert decision.decision == "NO_TRADE"
         assert decision.risk_gate_result == "PASS"
-        # Market price = (0.51 + 0.53) / 2 = 0.52
-        # Edge = 0.55 - 0.52 = 0.03 (insufficient)
-        assert decision.edge == pytest.approx(0.03, abs=0.001)
+        assert decision.edge == pytest.approx(0.02, abs=0.001)
 
     def test_evaluate_trade_confidence_fails(
         self, decision_engine: DecisionEngine, sample_market_snapshot: MarketSnapshot
@@ -369,7 +734,7 @@ class TestEvaluateTrade:
         assert isinstance(decision, Decision)
         assert decision.market_id == "test-market-1"
         assert decision.mixed_probability == pytest.approx(0.60, abs=0.001)
-        assert decision.market_implied_probability == pytest.approx(0.41, abs=0.001)
+        assert decision.market_implied_probability == pytest.approx(0.42, abs=0.001)
         assert decision.trace_id is not None
         assert decision.decision in ("BUY_YES", "BUY_NO", "NO_TRADE")
         assert decision.risk_gate_result in ("PASS", "FAIL")

@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -10,7 +10,7 @@ from kal_predict.api.routes import router as ui_router
 from kal_predict.api.routes import trial_router
 
 
-def _error(error_code: str, message: str, details: object = None) -> dict:
+def _error(error_code: str, message: str, details: object | None = None) -> dict[str, object]:
     payload = {
         "ok": False,
         "error_code": error_code,
@@ -29,7 +29,9 @@ def create_app() -> FastAPI:
     app.include_router(trial_router)
 
     @app.exception_handler(RequestValidationError)
-    async def request_validation_handler(_request, exc: RequestValidationError) -> JSONResponse:
+    async def request_validation_handler(
+        _request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
         return JSONResponse(
             status_code=422,
             content=_error(

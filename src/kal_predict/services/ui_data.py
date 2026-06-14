@@ -5,8 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
-from typing import Any
-from typing import Optional
+from typing import Any, Optional
 
 from kal_predict.adapters.market import MockMarketDataProvider
 from kal_predict.config import AppConfig
@@ -126,7 +125,7 @@ class UIDataService:
                 }
             )
 
-        latest_ts = items[0]["snapshot_timestamp"] if items else None
+        latest_ts = str(items[0]["snapshot_timestamp"]) if items else None
         return {
             "timestamp": utc_now_iso(),
             "freshness_seconds": freshness_seconds(latest_ts),
@@ -144,7 +143,10 @@ class UIDataService:
                 continue
             decisions.append(
                 {
-                    "decision_id": item.get("decision_id", f"decision-{item.get('timestamp', 'unknown')}"),
+                    "decision_id": item.get(
+                        "decision_id",
+                        f"decision-{item.get('timestamp', 'unknown')}",
+                    ),
                     "market_id": d_market,
                     "mixed_probability": item.get("forecast", 0.0),
                     "market_implied_probability": item.get("market_price", 0.0),
@@ -297,7 +299,7 @@ class UIDataService:
                     "snapshot_timestamp": snapshot.timestamp,
                 }
             )
-        latest_ts = items[0]["snapshot_timestamp"] if items else None
+        latest_ts = str(items[0]["snapshot_timestamp"]) if items else None
         return {
             "timestamp": utc_now_iso(),
             "freshness_seconds": freshness_seconds(latest_ts),
@@ -426,10 +428,12 @@ class UIDataService:
             self._trial_traces.insert(0, evaluation["trace"])
         return result
 
-    async def run_trial_scenarios(self, scenarios: list[dict[str, Any]], dry_run: bool = True) -> dict[str, Any]:
+    async def run_trial_scenarios(
+        self, scenarios: list[dict[str, Any]], dry_run: bool = True
+    ) -> dict[str, Any]:
         """Run bounded pre-key scenario simulations with paper-only semantics."""
         bounded = scenarios[:20]
-        summary = {
+        summary: dict[str, Any] = {
             "total": len(bounded),
             "pass": 0,
             "fail": 0,
@@ -442,11 +446,18 @@ class UIDataService:
             mode = str(scenario.get("mode", "auto")).lower()
             contracts = int(scenario.get("contracts", 1))
             if dry_run:
-                res = await self._simulate_scenario(market_id=market_id, mode=mode, contracts=contracts, side=scenario.get("side"))
+                res = await self._simulate_scenario(
+                    market_id=market_id,
+                    mode=mode,
+                    contracts=contracts,
+                    side=scenario.get("side"),
+                )
             else:
                 if mode == "manual":
                     side = str(scenario.get("side", "YES")).upper()
-                    res = await self.trial_manual_bet(market_id=market_id, side=side, contracts=contracts)
+                    res = await self.trial_manual_bet(
+                        market_id=market_id, side=side, contracts=contracts
+                    )
                 else:
                     res = await self.trial_auto_bet(market_id=market_id, contracts=contracts)
             if res.get("ok"):
@@ -476,7 +487,11 @@ class UIDataService:
         prior = (snapshot.yes_bid + snapshot.yes_ask) / 2.0
         if mode == "manual":
             normalized_side = str(side or "YES").upper()
-            inferred = min(1.0, prior + 0.05) if normalized_side == "YES" else max(0.0, prior - 0.05)
+            inferred = (
+                min(1.0, prior + 0.05)
+                if normalized_side == "YES"
+                else max(0.0, prior - 0.05)
+            )
             evaluation = self._evaluate_decision(
                 snapshot=snapshot,
                 inferred_probability=inferred,
@@ -512,9 +527,17 @@ class UIDataService:
             )
         decision = evaluation["decision"]
         if decision.risk_gate_result == "FAIL":
-            return self._error("risk_gate_failed", "Risk gate blocked scenario.", details={"trace": evaluation["trace"]})
+            return self._error(
+                "risk_gate_failed",
+                "Risk gate blocked scenario.",
+                details={"trace": evaluation["trace"]},
+            )
         if decision.decision == "NO_TRADE":
-            return self._error("no_trade_signal", "Decision engine returned NO_TRADE for scenario.", details={"trace": evaluation["trace"]})
+            return self._error(
+                "no_trade_signal",
+                "Decision engine returned NO_TRADE for scenario.",
+                details={"trace": evaluation["trace"]},
+            )
         return {"ok": True, "simulated": True, "trace": evaluation["trace"]}
 
     def _execute_paper_bet(

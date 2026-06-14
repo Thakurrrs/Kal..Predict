@@ -3,7 +3,16 @@
 import pytest
 from pydantic import ValidationError
 
-from kal_predict.models import AuditEvent, Decision, Forecast, MarketSnapshot
+from kal_predict.models import (
+    AuditEvent,
+    Decision,
+    Forecast,
+    MarketSnapshot,
+    ResearchSnapshot,
+    Signal,
+    SourceHealth,
+    TradeIntent,
+)
 
 
 def test_market_snapshot_schema():
@@ -21,6 +30,36 @@ def test_market_snapshot_schema():
     snapshot = MarketSnapshot(**data)
     assert snapshot.market_id == "WEATHER_CHICAGO_TEMP_75"
     assert snapshot.yes_bid == 0.65
+    assert snapshot.yes_mid == pytest.approx(0.66)
+    assert snapshot.spread == pytest.approx(0.02)
+
+
+def test_market_snapshot_supports_research_fields():
+    """Market snapshots include fields needed for autonomous research."""
+    snapshot = MarketSnapshot(
+        market_id="KXCPICORE-26JUN-T3.0",
+        ticker="KXCPICORE-26JUN-T3.0",
+        title="Will core CPI inflation be above 3.0% in June 2026?",
+        timestamp="2026-06-08T12:00:00Z",
+        yes_bid=0.41,
+        yes_ask=0.44,
+        no_bid=0.56,
+        no_ask=0.59,
+        volume=4200,
+        status="open",
+        close_time="2026-06-10T14:00:00Z",
+        category_hint="economics",
+        liquidity=12000,
+    )
+
+    assert snapshot.ticker == "KXCPICORE-26JUN-T3.0"
+    assert snapshot.title.startswith("Will core CPI")
+    assert snapshot.status == "open"
+    assert snapshot.close_time == "2026-06-10T14:00:00Z"
+    assert snapshot.category_hint == "economics"
+    assert snapshot.liquidity == 12000
+    assert snapshot.yes_mid == pytest.approx(0.425)
+    assert snapshot.spread == pytest.approx(0.03)
 
 
 def test_market_snapshot_validation():
@@ -66,6 +105,94 @@ def test_decision_schema():
     )
     assert decision.edge == 0.04
     assert decision.risk_gate_result == "PASS"
+
+
+def test_decision_supports_gate_audit_fields():
+    """Decision records include category and deterministic gate audit details."""
+    decision = Decision(
+        decision_id="dec-002",
+        market_id="KXCPICORE-26JUN-T3.0",
+        mixed_probability=0.64,
+        market_implied_probability=0.58,
+        edge=0.06,
+        expected_value=8.25,
+        risk_gate_result="PASS",
+        decision="BUY_YES",
+        trace_id="trace-gates",
+        category="economics",
+        skip_reason=None,
+        gate_results={"spread": "PASS", "net_edge": "PASS"},
+        confidence="medium",
+        signals_used=["fred_trend", "release_calendar"],
+        paper_expected_cost=12.0,
+    )
+
+    assert decision.category == "economics"
+    assert decision.skip_reason is None
+    assert decision.gate_results["spread"] == "PASS"
+    assert decision.signals_used == ["fred_trend", "release_calendar"]
+
+
+def test_trade_intent_supports_profit_first_fields():
+    """Trade intent keeps execution and research context for paper PnL tracking."""
+    intent = TradeIntent(
+        intent_id="intent-profit-001",
+        market_id="KXCPICORE-26JUN-T3.0",
+        side="YES",
+        max_price=0.44,
+        price=0.44,
+        size=10,
+        size_dollars=4.40,
+        edge=0.06,
+        model_probability=0.50,
+        market_price=0.44,
+        category="economics",
+        research_snapshot_id="research-001",
+        mode="paper",
+        created_at="2026-06-08T12:00:00Z",
+        trace_id="trace-profit",
+    )
+
+    assert intent.price == 0.44
+    assert intent.size_dollars == 4.40
+    assert intent.edge == 0.06
+    assert intent.category == "economics"
+    assert intent.research_snapshot_id == "research-001"
+
+
+def test_research_snapshot_schema_supports_observation_only():
+    """Research snapshots can store observation-only sports research."""
+    signal = Signal(
+        source="sports_parser",
+        direction="YES",
+        confidence=0.5,
+        rationale="Parsed a supported soccer match-winner market.",
+    )
+    source_health = SourceHealth(
+        source="sports_parser",
+        status="ok",
+        latency_ms=0,
+        freshness_seconds=0,
+        error_code=None,
+    )
+    snapshot = ResearchSnapshot(
+        research_snapshot_id="research-sports-001",
+        market_id="KXWORLD-CUP-ARG-BRA",
+        category="sports",
+        usable=True,
+        skip_reason=None,
+        evidence_items=[],
+        signals=[signal],
+        source_health=[source_health],
+        retrieved_at="2026-06-08T12:00:00Z",
+        expires_at="2026-06-08T12:30:00Z",
+        metadata={"market_type": "match_winner", "paper_trading_enabled": False},
+    )
+
+    assert snapshot.category == "sports"
+    assert snapshot.usable is True
+    assert snapshot.signals[0].source == "sports_parser"
+    assert snapshot.metadata["paper_trading_enabled"] is False
 
 
 def test_audit_event_schema():
