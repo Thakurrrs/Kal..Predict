@@ -1,5 +1,6 @@
 """SQLite-backed durable store for paper trading artifacts."""
 
+import hashlib
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -156,6 +157,87 @@ class PaperStore:
             "unresolved_exposure": round(self.unresolved_exposure(), 2),
         }
 
+    def record_observation(self, observation: dict[str, Any]) -> str:
+        """Insert one observation, idempotent per (scan_id, market_id).
+
+        Observations are read-only instrumentation records: what the router saw
+        for a market during a scan. They never affect trading logic. Re-running
+        the same scan_id over the same market is a no-op; the same market in a
+        new scan creates a new row (this is how daily volume accumulates).
+        """
+        self._validate_observation(observation)
+        observation_id = self._observation_id(
+            observation["scan_id"], observation["market_id"]
+        )
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                INSERT OR IGNORE INTO observations (
+                    observation_id, scan_id, market_id, category, subcategory,
+                    parser_status, enabled_for_paper, market_implied_prob, spread,
+                    volume, liquidity, close_time, hours_to_close, market_status,
+                    observed_at, payload_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    observation_id,
+                    observation["scan_id"],
+                    observation["market_id"],
+                    observation["category"],
+                    observation.get("subcategory"),
+                    observation["parser_status"],
+                    1 if observation.get("enabled_for_paper") else 0,
+                    observation.get("market_implied_prob"),
+                    observation.get("spread"),
+                    observation.get("volume"),
+                    observation.get("liquidity"),
+                    observation.get("close_time"),
+                    observation.get("hours_to_close"),
+                    observation.get("market_status"),
+                    observation.get("observed_at")
+                    or datetime.now(timezone.utc).isoformat(),
+                    json.dumps(observation),
+                ),
+            )
+        return "inserted" if cursor.rowcount == 1 else "ignored"
+
+    def observation_category_summary(self) -> list[dict[str, Any]]:
+        """Aggregate observation counts by category/subcategory/parser_status.
+
+        This is the raw input for the Phase 4 throughput report.
+        """
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT category, subcategory, parser_status, COUNT(*)
+                FROM observations
+                GROUP BY category, subcategory, parser_status
+                ORDER BY category, subcategory, parser_status
+                """
+            ).fetchall()
+        return [
+            {
+                "category": row[0],
+                "subcategory": row[1],
+                "parser_status": row[2],
+                "count": int(row[3]),
+            }
+            for row in rows
+        ]
+
+    def _validate_observation(self, observation: dict[str, Any]) -> None:
+        required = ("scan_id", "market_id", "category", "parser_status")
+        for field in required:
+            value = observation.get(field)
+            if value is None or value == "":
+                raise ValueError(f"missing observation field: {field}")
+
+    @staticmethod
+    def _observation_id(scan_id: str, market_id: str) -> str:
+        digest = hashlib.sha256(f"{scan_id}|{market_id}".encode("utf-8")).hexdigest()
+        return digest[:32]
+
     def _record_decision(self, connection: sqlite3.Connection, decision: Decision) -> str:
         cursor = connection.execute(
             """
@@ -305,6 +387,25 @@ class PaperStore:
                 created_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS observations (
+                observation_id TEXT PRIMARY KEY,
+                scan_id TEXT NOT NULL,
+                market_id TEXT NOT NULL,
+                category TEXT NOT NULL,
+                subcategory TEXT,
+                parser_status TEXT NOT NULL,
+                enabled_for_paper INTEGER NOT NULL,
+                market_implied_prob REAL,
+                spread REAL,
+                volume INTEGER,
+                liquidity REAL,
+                close_time TEXT,
+                hours_to_close REAL,
+                market_status TEXT,
+                observed_at TEXT NOT NULL,
+                payload_json TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS performance_daily (
                 day TEXT PRIMARY KEY,
                 gross_pnl REAL NOT NULL DEFAULT 0,
@@ -331,5 +432,10 @@ class PaperStore:
             CREATE INDEX IF NOT EXISTS idx_outcomes_market_id ON outcomes(market_id);
             CREATE INDEX IF NOT EXISTS idx_market_skips_market_reason
                 ON market_skips(market_id, reason);
+            CREATE INDEX IF NOT EXISTS idx_observations_scan ON observations(scan_id);
+            CREATE INDEX IF NOT EXISTS idx_observations_category
+                ON observations(category, subcategory);
+            CREATE INDEX IF NOT EXISTS idx_observations_observed_at
+                ON observations(observed_at);
             """
         )
