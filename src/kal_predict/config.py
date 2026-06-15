@@ -1,6 +1,7 @@
 """Configuration loader with environment-based secret injection."""
 
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -210,10 +211,44 @@ class AppConfig(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
 
+class LiveModeNotPermittedError(RuntimeError):
+    """Raised when live trading is configured without explicit operator opt-in."""
+
+
+def _assert_execution_safe(config: "AppConfig") -> None:
+    """Fail closed if live trading is configured without explicit opt-in.
+
+    During the observation/paper cycle nothing should ever run live. A
+    write-capable Kalshi key paired with live mode is the dangerous
+    combination, so we refuse to start unless the operator has explicitly
+    set EXECUTION_LIVE_OPT_IN=true. This is a startup tripwire, independent
+    of the execution adapter's own fail-closed checks (defense in depth).
+    """
+    execution = config.execution
+    wants_live = execution.mode == "live" or execution.live_trading_enabled
+    if not wants_live:
+        return
+
+    opt_in = os.getenv("EXECUTION_LIVE_OPT_IN", "").strip().lower() == "true"
+    if not opt_in:
+        raise LiveModeNotPermittedError(
+            "Live trading is configured (EXECUTION_MODE=live or "
+            "EXECUTION_LIVE_TRADING_ENABLED=true) but EXECUTION_LIVE_OPT_IN is "
+            "not set to 'true'. Refusing to start. Keep EXECUTION_MODE=paper "
+            "for observation/paper work, or set EXECUTION_LIVE_OPT_IN=true to "
+            "deliberately enable live mode."
+        )
+    logger.warning(
+        "Live trading mode enabled via explicit operator opt-in",
+        extra={"event_type": "live_mode_opt_in", "actor": "config_loader"},
+    )
+
+
 def load_config() -> AppConfig:
     """Load configuration from environment and .env file."""
     load_dotenv(ENV_FILE, override=False)
     config = AppConfig()
+    _assert_execution_safe(config)
     logger.info(
         "Configuration loaded",
         extra={

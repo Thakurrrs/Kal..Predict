@@ -1,3 +1,5 @@
+import pytest
+
 from kal_predict.config import (
     ExecutionConfig,
     FredConfig,
@@ -121,6 +123,44 @@ def test_paper_sizing_config_from_env(monkeypatch):
 
     assert config.bankroll_usd == 5000.0
     assert config.max_dollars_per_trade == 75.0
+
+
+def test_load_config_paper_mode_is_safe(monkeypatch):
+    """Default paper mode loads without tripping the live guard."""
+    monkeypatch.delenv("EXECUTION_MODE", raising=False)
+    monkeypatch.delenv("EXECUTION_LIVE_TRADING_ENABLED", raising=False)
+    monkeypatch.delenv("EXECUTION_LIVE_OPT_IN", raising=False)
+    config = load_config()
+    assert config.execution.mode == "paper"
+
+
+def test_load_config_live_without_opt_in_raises(monkeypatch):
+    """Live mode without explicit opt-in is refused at startup."""
+    from kal_predict.config import LiveModeNotPermittedError
+
+    monkeypatch.setenv("EXECUTION_MODE", "live")
+    monkeypatch.delenv("EXECUTION_LIVE_OPT_IN", raising=False)
+    with pytest.raises(LiveModeNotPermittedError):
+        load_config()
+
+
+def test_load_config_live_trading_enabled_without_opt_in_raises(monkeypatch):
+    """live_trading_enabled alone (mode still paper) also trips the guard."""
+    from kal_predict.config import LiveModeNotPermittedError
+
+    monkeypatch.setenv("EXECUTION_MODE", "paper")
+    monkeypatch.setenv("EXECUTION_LIVE_TRADING_ENABLED", "true")
+    monkeypatch.delenv("EXECUTION_LIVE_OPT_IN", raising=False)
+    with pytest.raises(LiveModeNotPermittedError):
+        load_config()
+
+
+def test_load_config_live_with_opt_in_succeeds(monkeypatch):
+    """Live mode is allowed only with explicit operator opt-in."""
+    monkeypatch.setenv("EXECUTION_MODE", "live")
+    monkeypatch.setenv("EXECUTION_LIVE_OPT_IN", "true")
+    config = load_config()
+    assert config.execution.mode == "live"
 
 
 def test_load_config_succeeds():
