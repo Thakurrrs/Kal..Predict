@@ -2,6 +2,10 @@
 .env
 .env.local
 .env.*.local
+# Example env files may get filled with real secrets — ignore them.
+# The safe placeholder template is .env.template (committed).
+.env.example
+.env.local.example
 
 # Python
 __pycache__/
