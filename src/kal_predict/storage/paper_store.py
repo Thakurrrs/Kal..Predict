@@ -238,6 +238,58 @@ class PaperStore:
         digest = hashlib.sha256(f"{scan_id}|{market_id}".encode("utf-8")).hexdigest()
         return digest[:32]
 
+    def observation_throughput(self) -> dict[str, Any]:
+        """Summarize observation volume per category for the throughput report.
+
+        Returns, per category (and the soccer subcategory), the number of
+        distinct days observed, total observations, and the resulting average
+        observations per day. This is the binding number for deciding whether
+        downstream model phases are worth building per category.
+        """
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT
+                    category,
+                    subcategory,
+                    COUNT(*) AS total,
+                    COUNT(DISTINCT substr(observed_at, 1, 10)) AS days,
+                    SUM(CASE WHEN parser_status = 'supported' THEN 1 ELSE 0 END)
+                        AS supported,
+                    SUM(enabled_for_paper) AS paper_enabled
+                FROM observations
+                GROUP BY category, subcategory
+                ORDER BY total DESC
+                """
+            ).fetchall()
+            span = connection.execute(
+                "SELECT MIN(substr(observed_at, 1, 10)), MAX(substr(observed_at, 1, 10)), "
+                "COUNT(*) FROM observations"
+            ).fetchone()
+
+        categories = []
+        for row in rows:
+            total = int(row[2])
+            days = int(row[3]) or 1
+            categories.append(
+                {
+                    "category": row[0],
+                    "subcategory": row[1],
+                    "total_observations": total,
+                    "distinct_days": int(row[3]),
+                    "avg_per_day": round(total / days, 2),
+                    "supported": int(row[4] or 0),
+                    "paper_enabled": int(row[5] or 0),
+                }
+            )
+
+        return {
+            "first_day": span[0],
+            "last_day": span[1],
+            "total_observations": int(span[2] or 0),
+            "categories": categories,
+        }
+
     def _record_decision(self, connection: sqlite3.Connection, decision: Decision) -> str:
         cursor = connection.execute(
             """

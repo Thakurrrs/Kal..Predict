@@ -34,12 +34,17 @@ Exit criteria:
 
 **Goal:** Classify real markets into supported categories with explicit skip reasons.
 
-- [ ] Extend `MarketCategoryRouter` to include soccer.
-- [ ] Add deterministic parser status: `supported`, `unsupported`, `ambiguous`, `unsafe`.
+**Status as of 2026-06-15:** Router taxonomy reconciled (keep-and-relabel): broad
+`weather/economics/sports/politics/unknown` categories retained for full
+observation signal; soccer implemented as the enabled `subcategory` slice within
+`sports`. Deterministic `ParserStatus` enum added.
+
+- [x] Add deterministic parser status: `supported`, `unsupported`, `ambiguous`, `unsafe`.
+- [x] Recognize soccer as the enabled slice within broad sports.
 - [ ] Add weather contract parser for location/date/threshold.
 - [ ] Add economics contract parser for release type/date/threshold.
 - [ ] Add soccer contract parser for teams/market type/date.
-- [ ] Record unsupported markets as skips instead of ignoring them.
+- [x] Record observed markets (including unsupported) instead of ignoring them.
 
 Exit criteria:
 

@@ -66,7 +66,41 @@ def test_missing_required_field_raises(store: PaperStore):
         store.record_observation(bad)
 
 
-def test_category_summary_aggregates(store: PaperStore):
+def test_throughput_empty(store: PaperStore):
+    report = store.observation_throughput()
+    assert report["total_observations"] == 0
+    assert report["categories"] == []
+
+
+def test_throughput_avg_per_day(store: PaperStore):
+    # Two observations same day, one category -> avg_per_day == 2.
+    store.record_observation(
+        make_observation(market_id="W1", observed_at="2026-06-15T08:00:00Z")
+    )
+    store.record_observation(
+        make_observation(market_id="W2", observed_at="2026-06-15T20:00:00Z")
+    )
+    report = store.observation_throughput()
+    weather = next(r for r in report["categories"] if r["category"] == "weather")
+    assert weather["total_observations"] == 2
+    assert weather["distinct_days"] == 1
+    assert weather["avg_per_day"] == 2.0
+
+
+def test_throughput_spans_multiple_days(store: PaperStore):
+    store.record_observation(
+        make_observation(market_id="W1", observed_at="2026-06-14T08:00:00Z")
+    )
+    store.record_observation(
+        make_observation(market_id="W2", observed_at="2026-06-15T08:00:00Z")
+    )
+    report = store.observation_throughput()
+    weather = next(r for r in report["categories"] if r["category"] == "weather")
+    assert weather["distinct_days"] == 2
+    assert weather["avg_per_day"] == 1.0
+    assert report["first_day"] == "2026-06-14"
+    assert report["last_day"] == "2026-06-15"
+
     store.record_observation(
         make_observation(market_id="W1", category="weather", parser_status="supported")
     )
