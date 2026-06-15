@@ -24,21 +24,41 @@ class OllamaConfig(BaseSettings):
 
 
 class KalshiConfig(BaseSettings):
-    """Kalshi API configuration (credential mode only)."""
+    """Kalshi API configuration (credential mode only).
+
+    The RSA private key may be supplied two ways, checked in this order:
+    1. Inline via ``KALSHI_PRIVATE_KEY_PEM`` (the full PEM block; literal ``\\n``
+       sequences are normalized to real newlines so it can live on one line).
+    2. From disk via ``KALSHI_PRIVATE_KEY_PATH``.
+
+    Inline takes precedence. The inline value is the real secret and must never
+    be logged or echoed.
+    """
 
     base_url: str = Field(default="https://external-api.kalshi.com")
     api_key_id: Optional[str] = Field(default=None)
     private_key_path: Optional[str] = Field(default=None)
+    private_key_pem: Optional[str] = Field(default=None)
 
     model_config = SettingsConfigDict(env_prefix="KALSHI_")
 
-    @property
-    def is_available(self) -> bool:
-        """Check if Kalshi credentials are loaded."""
-        return self.api_key_id is not None and self.private_key_path is not None
+    def _normalized_inline_pem(self) -> Optional[str]:
+        """Return the inline PEM with escaped newlines normalized, if present."""
+        if not self.private_key_pem:
+            return None
+        pem = self.private_key_pem.strip()
+        if not pem:
+            return None
+        # Allow single-line .env values that use literal backslash-n separators.
+        if "\\n" in pem and "\n" not in pem:
+            pem = pem.replace("\\n", "\n")
+        return pem
 
     def load_private_key(self) -> Optional[str]:
-        """Load private key from disk if path is set."""
+        """Load the private key, preferring inline PEM over a disk path."""
+        inline = self._normalized_inline_pem()
+        if inline:
+            return inline
         if not self.private_key_path:
             return None
         try:
@@ -47,6 +67,18 @@ class KalshiConfig(BaseSettings):
         except OSError as e:
             logger.warning(f"Cannot load private key at {self.private_key_path}: {e}")
             return None
+
+    @property
+    def is_available(self) -> bool:
+        """Check if Kalshi credentials are loaded.
+
+        Requires an API key ID plus a resolvable private key (inline or path).
+        """
+        if self.api_key_id is None:
+            return False
+        if self._normalized_inline_pem() is not None:
+            return True
+        return self.private_key_path is not None
 
 
 class NWSConfig(BaseSettings):

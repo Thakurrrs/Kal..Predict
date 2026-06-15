@@ -3,10 +3,44 @@
 import json
 import logging
 import logging.config
+import re
 from pathlib import Path
 from typing import Optional
 
 from kal_predict.trace import get_trace_id
+
+# Matches a PEM private key block so key material can never reach logs.
+_PEM_PRIVATE_KEY_RE = re.compile(
+    r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----",
+    re.DOTALL,
+)
+_REDACTED = "[REDACTED_PRIVATE_KEY]"
+
+
+def redact_secrets(text: str) -> str:
+    """Replace any PEM private-key block in ``text`` with a redaction marker."""
+    if "PRIVATE KEY" not in text:
+        return text
+    return _PEM_PRIVATE_KEY_RE.sub(_REDACTED, text)
+
+
+class SecretRedactionFilter(logging.Filter):
+    """Strip PEM private-key material from log messages and args."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            record.msg = redact_secrets(record.msg)
+        if record.args:
+            if isinstance(record.args, dict):
+                record.args = {
+                    k: redact_secrets(v) if isinstance(v, str) else v
+                    for k, v in record.args.items()
+                }
+            else:
+                record.args = tuple(
+                    redact_secrets(a) if isinstance(a, str) else a for a in record.args
+                )
+        return True
 
 
 class TraceIDFilter(logging.Filter):
@@ -55,9 +89,10 @@ def setup_logging(
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, log_level.upper()))
 
-    # Add trace ID filter to all handlers
+    # Add trace ID + secret redaction filters to all handlers
     for handler in root_logger.handlers:
         handler.addFilter(TraceIDFilter())
+        handler.addFilter(SecretRedactionFilter())
 
     # Configure JSON formatter if requested
     if log_format == "json":
@@ -70,7 +105,8 @@ def setup_logging(
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Get a logger instance with trace ID injection."""
+    """Get a logger instance with trace ID injection and secret redaction."""
     logger = logging.getLogger(name)
     logger.addFilter(TraceIDFilter())
+    logger.addFilter(SecretRedactionFilter())
     return logger

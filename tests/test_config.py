@@ -34,7 +34,51 @@ def test_kalshi_available_checks_credentials(monkeypatch):
     assert config.is_available is True
 
 
-def test_kalshi_base_url_from_env(monkeypatch):
+def test_kalshi_inline_pem_takes_precedence_and_is_available(monkeypatch):
+    """Inline PEM alone (no path) makes Kalshi available and is returned by loader."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pem = key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode("utf-8")
+
+    monkeypatch.setenv("KALSHI_API_KEY_ID", "test-key")
+    monkeypatch.setenv("KALSHI_PRIVATE_KEY_PEM", pem)
+
+    config = KalshiConfig()
+    assert config.is_available is True
+    loaded = config.load_private_key()
+    assert loaded is not None
+    assert "BEGIN PRIVATE KEY" in loaded
+
+
+def test_kalshi_inline_pem_normalizes_escaped_newlines(monkeypatch):
+    """A single-line .env value using literal \\n is normalized to real newlines."""
+    monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+    one_line = "-----BEGIN PRIVATE KEY-----\\nMIIBVgIBADANBg\\n-----END PRIVATE KEY-----"
+    monkeypatch.setenv("KALSHI_API_KEY_ID", "test-key")
+    monkeypatch.setenv("KALSHI_PRIVATE_KEY_PEM", one_line)
+
+    config = KalshiConfig()
+    loaded = config.load_private_key()
+    assert loaded is not None
+    assert "\\n" not in loaded
+    assert loaded.count("\n") == 2
+
+
+def test_kalshi_not_available_without_any_key(monkeypatch):
+    """API key alone, with neither inline nor path, is not available."""
+    monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+    monkeypatch.delenv("KALSHI_PRIVATE_KEY_PEM", raising=False)
+    monkeypatch.setenv("KALSHI_API_KEY_ID", "test-key")
+
+    config = KalshiConfig()
+    assert config.is_available is False
     """Kalshi API host is configurable for production/demo environments."""
     monkeypatch.setenv("KALSHI_BASE_URL", "https://example.kalshi.test")
 
