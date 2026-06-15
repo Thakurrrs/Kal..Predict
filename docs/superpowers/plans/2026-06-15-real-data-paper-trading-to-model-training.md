@@ -14,9 +14,10 @@
 
 **Goal:** Replace mock market display with real read-only Kalshi market data while keeping all execution paper-only.
 
-**Status as of 2026-06-15:** Partially complete. The code now selects `KalshiMarketDataProvider` when credentials and private key are configured, otherwise it falls back to an explicitly labeled mock provider. The UI/API market contract now exposes source, provider status, status, close time, title, category hint, and liquidity. Authenticated Kalshi smoke remains open because real credentials were not active in this session.
+**Status: COMPLETE as of 2026-06-15.** Authenticated demo smoke passed.
+Evidence recorded in `docs/quality/pre-key-phase2-evidence-pack.md`.
 
-- [ ] Add authenticated Kalshi read-only smoke tests.
+- [x] Add authenticated Kalshi read-only smoke tests.
 - [x] Add a market feed adapter that returns normalized `MarketSnapshot` objects.
 - [x] Add provider source/status labeling for Kalshi read API availability.
 - [x] Update UI market screens to show market source, status, close time, spread, volume, title, category hint, and liquidity.

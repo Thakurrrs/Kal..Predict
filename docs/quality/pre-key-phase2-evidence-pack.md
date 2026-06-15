@@ -4,12 +4,52 @@
 - Owner: Founder (Rasalghul)
 - Reviewers: Founder (self-review)
 - Approver: Founder (Rasalghul)
-- Version: 1.0.0
-- Last Updated: 2026-04-24
+- Version: 2.0.0
+- Last Updated: 2026-06-15
 - Status: Approved
 
 ## Scope
-Evidence for Phase 2 work that is independent of Kalshi API credentials.
+Evidence for Phase 2 work that is independent of Kalshi API credentials,
+plus Phase 1 authenticated demo smoke evidence recorded 2026-06-15.
+
+## Phase 1 — Authenticated Kalshi Demo Smoke (2026-06-15)
+
+### Evidence
+- Timestamp: 2026-06-15T19:42:34Z
+- Branch: feature/repo-verification-dependency-audit
+- Commit: 5daf494 feat: add demo smoke test script and update runbook (Phase 1)
+- Environment: Kalshi demo (https://external-api.demo.kalshi.co)
+- Credential mode: inline PEM (KALSHI_PRIVATE_KEY_PEM)
+- Execution mode: paper
+
+### Command
+```
+python scripts/demo_smoke.py
+```
+
+### Output
+```
+[✓] Credentials loaded
+[✓] Demo host confirmed: https://external-api.demo.kalshi.co
+[✓] Private key loaded
+[✓] Provider constructed
+[✓] Market list: 10 markets returned
+[✓] source=kalshi_read_only: real Kalshi demo data confirmed
+SMOKE PASSED — Phase 1 complete. Real demo data confirmed.
+```
+
+### Gate status
+- source=kalshi_read_only: PASS
+- provider_status=credentialed: PASS
+- EXECUTION_MODE=paper: PASS
+- Real markets returned: PASS (10 markets)
+- Live order path enabled: NO (paper-only, fail-closed)
+
+### Unblocked items
+- phase2-kalshi-read: UNBLOCKED — real Kalshi read path confirmed working
+- Observation scanner: ready to run against demo markets
+
+
 
 ## Command evidence
 
