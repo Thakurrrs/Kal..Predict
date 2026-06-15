@@ -18,6 +18,7 @@ export interface HealthResponse {
 
 export interface MarketItem {
   market_id: string;
+  title: string;
   yes_bid: number;
   yes_ask: number;
   no_bid: number;
@@ -25,12 +26,17 @@ export interface MarketItem {
   volume: number;
   snapshot_timestamp: string;
   spread: number;
+  status: string;
+  close_time: string | null;
+  category_hint: string | null;
+  liquidity: number | null;
 }
 
 export interface MarketsResponse {
   timestamp: string;
   freshness_seconds: number;
   source: string;
+  provider_status: ProviderStatus;
   markets: MarketItem[];
 }
 
@@ -74,6 +80,7 @@ export interface PaperMetricsResponse {
   total_trades: number;
   risk_gate_failures: number;
   last_trade_at: string | null;
+  unresolved_exposure: number;
 }
 
 export interface AuditEventItem {

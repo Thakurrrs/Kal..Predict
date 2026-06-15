@@ -3,6 +3,9 @@
 from fastapi.testclient import TestClient
 
 from kal_predict.api.app import create_app
+from kal_predict.api.state import get_ui_service
+from kal_predict.config import AppConfig, PaperDataConfig
+from kal_predict.services.ui_data import UIDataService
 
 
 def test_health_endpoint_contract() -> None:
@@ -22,7 +25,16 @@ def test_markets_endpoint_contract() -> None:
     response = client.get("/api/ui/markets?limit=5")
     assert response.status_code == 200
     body = response.json()
+    assert body["source"] in {"mock_market_provider", "kalshi_read_only"}
+    assert body["provider_status"] in {"mock", "credentialed"}
     assert isinstance(body.get("markets"), list)
+    if body["markets"]:
+        first = body["markets"][0]
+        assert "title" in first
+        assert "status" in first
+        assert "close_time" in first
+        assert "category_hint" in first
+        assert "liquidity" in first
 
 
 def test_decisions_endpoint_contract() -> None:
@@ -103,8 +115,13 @@ def test_trial_markets_endpoint_contract() -> None:
         assert "model" in item
 
 
-def test_trial_book_and_betting_flow() -> None:
-    client = TestClient(create_app())
+def test_trial_book_and_betting_flow(tmp_path) -> None:
+    app = create_app()
+    service = UIDataService(
+        AppConfig(paper_data=PaperDataConfig(database_path=str(tmp_path / "paper.db")))
+    )
+    app.dependency_overrides[get_ui_service] = lambda: service
+    client = TestClient(app)
 
     first_market = client.get("/api/trial/markets?limit=1").json()["markets"][0]["market_id"]
     before = client.get("/api/trial/book").json()
@@ -120,6 +137,30 @@ def test_trial_book_and_betting_flow() -> None:
     after = client.get("/api/trial/book").json()
     assert float(after["balance_usd"]) < before_balance
     assert isinstance(after.get("bets"), list)
+
+
+def test_trial_betting_flow_updates_durable_paper_metrics(tmp_path) -> None:
+    app = create_app()
+    service = UIDataService(
+        AppConfig(paper_data=PaperDataConfig(database_path=str(tmp_path / "paper.db")))
+    )
+    app.dependency_overrides[get_ui_service] = lambda: service
+    client = TestClient(app)
+
+    first_market = client.get("/api/trial/markets?limit=1").json()["markets"][0]["market_id"]
+
+    place = client.post(
+        "/api/trial/bets/manual",
+        json={"market_id": first_market, "side": "YES", "contracts": 1},
+    )
+    metrics = client.get("/api/ui/metrics/paper")
+
+    assert place.status_code == 200
+    assert metrics.status_code == 200
+    body = metrics.json()
+    assert body["source"] == "paper_store"
+    assert body["total_trades"] == 1
+    assert body["unresolved_exposure"] > 0
 
 
 def test_trial_manual_bet_invalid_side_validation() -> None:

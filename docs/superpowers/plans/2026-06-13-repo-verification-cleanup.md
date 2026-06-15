@@ -304,7 +304,7 @@ git commit -m "chore: clean python type findings"
 - Modify: `docs/superpowers/plans/2026-06-13-repo-verification-cleanup.md`
 - Optionally modify: `ui/package-lock.json`, `ui/package.json` only if a low-risk patch update resolves vulnerabilities without breaking tests.
 
-- [ ] **Step 1: Run npm audit**
+- [x] **Step 1: Run npm audit**
 
 Run:
 
@@ -314,11 +314,13 @@ npm.cmd --prefix ui audit
 
 Expected: either a vulnerability report or registry failure that must be recorded in this plan.
 
-- [ ] **Step 2: Decide fix versus follow-up**
+- [x] **Step 2: Decide fix versus follow-up**
 
 If `npm audit fix` changes only patch/minor locked transitive packages and UI tests still pass, commit it. If it requires breaking upgrades, leave the lockfile unchanged and add a follow-up note.
 
-- [ ] **Step 3: Final verification**
+Result: `npm audit fix` updated the transitive dev dependency `ws` from `8.20.0` to `8.21.0` in `ui/package-lock.json`. The remaining audit findings require `npm audit fix --force`, which would install breaking upgrades (`next@16.2.9` and `vitest@4.1.8`), so those upgrades were not applied in this cleanup task.
+
+- [x] **Step 3: Final verification**
 
 Run:
 
@@ -331,3 +333,5 @@ npx.cmd --prefix ui tsc --noEmit --project ui/tsconfig.json
 ```
 
 Expected: all required verification commands pass, or remaining dependency-audit risk is explicitly documented.
+
+Result: Python tests, Ruff, mypy, UI tests, and TypeScript all passed. `npm audit` still reports 7 vulnerabilities that require breaking framework/test-runner upgrades; follow-up should plan and test the Next.js/Vitest upgrade separately.

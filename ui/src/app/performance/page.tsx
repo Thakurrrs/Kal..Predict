@@ -23,10 +23,10 @@ export default async function PerformancePage() {
           helperText="How many paper bets were placed in this run."
         />
         <KpiCard
-          label="Forecast Quality (Brier)"
-          value={replay.brier_score?.toFixed(3) ?? "N/A"}
-          tone={replay.brier_pass ? "ok" : "warn"}
-          helperText="Lower score means better forecast accuracy."
+          label="Open Exposure"
+          value={paper.unresolved_exposure.toFixed(2)}
+          tone="warn"
+          helperText="Paper capital currently committed to unresolved bets."
         />
       </div>
 
@@ -34,6 +34,7 @@ export default async function PerformancePage() {
       <DataState title="Paper Trading Results">
         <div>Paper profit/loss: {paper.paper_pnl.toFixed(2)}</div>
         <div>Total trades: {paper.total_trades}</div>
+        <div>Open exposure: {paper.unresolved_exposure.toFixed(2)}</div>
         <div>Wins: {paper.wins}</div>
         <div>Losses: {paper.losses}</div>
         <div>Safety-check blocks: {paper.risk_gate_failures}</div>

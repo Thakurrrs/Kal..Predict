@@ -13,10 +13,18 @@ import type {
   TrialScenarioRunResponse
 } from "@/lib/types";
 
-const API_BASE = process.env.API_BASE_URL ?? "";
+export function resolveApiUrl(path: string): string {
+  const apiBase = process.env.API_BASE_URL ?? "";
+  const serverApiBase = process.env.API_PROXY_TARGET ?? apiBase;
+  const isBrowser = typeof window !== "undefined";
+  if (isBrowser || path.startsWith("http://") || path.startsWith("https://")) {
+    return `${apiBase}${path}`;
+  }
+  return `${serverApiBase}${path}`;
+}
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(resolveApiUrl(path), {
     ...init,
     headers: {
       "Content-Type": "application/json",

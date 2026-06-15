@@ -30,6 +30,7 @@ wheels/
 # Testing
 .pytest_cache/
 .pytest-tmp/
+.pytest-run/
 .coverage
 htmlcov/
 .tox/
@@ -47,6 +48,7 @@ htmlcov/
 logs/
 *.log
 data/
+artifacts/
 
 # Credentials and keys
 *.pem
@@ -67,3 +69,4 @@ ui/*.tsbuildinfo
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.npm-cache/

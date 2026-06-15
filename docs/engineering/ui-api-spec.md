@@ -45,12 +45,19 @@ Define stable dashboard and paper-only trial API contracts used by the React das
 - Query params:
   - `limit` (optional, default 50)
 - Response fields:
+  - `source` (`kalshi_read_only` when real Kalshi read-only data is active, otherwise `mock_market_provider`)
+  - `provider_status` (`credentialed` or `mock`)
   - `markets` array of:
     - `market_id`
+    - `title`
     - `yes_bid`, `yes_ask`, `no_bid`, `no_ask`
     - `volume`
     - `snapshot_timestamp`
     - `spread`
+    - `status`
+    - `close_time`
+    - `category_hint`
+    - `liquidity`
 
 ### `GET /api/ui/decisions`
 - Returns decision feed for recent evaluations.
@@ -85,6 +92,7 @@ Define stable dashboard and paper-only trial API contracts used by the React das
   - `wins`
   - `losses`
   - `total_trades`
+  - `unresolved_exposure`
   - `risk_gate_failures`
   - `last_trade_at`
 

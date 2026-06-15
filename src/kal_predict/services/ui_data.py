@@ -7,10 +7,16 @@ from pathlib import Path
 from threading import Lock
 from typing import Any, Optional
 
-from kal_predict.adapters.market import MockMarketDataProvider
+from kal_predict.adapters.market import (
+    KalshiMarketDataProvider,
+    MarketDataProvider,
+    MockMarketDataProvider,
+)
 from kal_predict.config import AppConfig
 from kal_predict.core.decision import DecisionEngine
+from kal_predict.models import Decision
 from kal_predict.services.inference import InferenceService
+from kal_predict.storage.paper_store import PaperStore
 
 
 def utc_now_iso() -> str:
@@ -52,18 +58,43 @@ def freshness_seconds(timestamp: Optional[str]) -> int:
     return max(0, int((now - parsed).total_seconds()))
 
 
+def build_market_provider(config: AppConfig) -> tuple[MarketDataProvider, str]:
+    """Build the read-only market provider and explicit source label."""
+    if config.kalshi.is_available:
+        private_key_pem = config.kalshi.load_private_key()
+        if private_key_pem:
+            return (
+                KalshiMarketDataProvider(
+                    api_key_id=str(config.kalshi.api_key_id),
+                    private_key_pem=private_key_pem,
+                    base_url=config.kalshi.base_url,
+                ),
+                "kalshi_read_only",
+            )
+    return MockMarketDataProvider(), "mock_market_provider"
+
+
 class UIDataService:
     """Read-only service that maps runtime artifacts into API payloads."""
 
-    def __init__(self, config: AppConfig) -> None:
+    def __init__(
+        self,
+        config: AppConfig,
+        market_provider: MarketDataProvider | None = None,
+        market_source: str | None = None,
+    ) -> None:
         self._config = config
         self._root = _project_root()
         self._state_file = self._root / "data" / "heartbeat" / "state.json"
         self._replay_file = self._root / "data" / "replay_results.json"
         self._log_file = self._root / "logs" / "kal_predict.log"
-        self._market_provider = MockMarketDataProvider()
+        provider, source = build_market_provider(config)
+        self._market_provider = market_provider or provider
+        self._market_source = market_source or source
         self._decision_engine = DecisionEngine(config)
         self._inference = InferenceService(config)
+        self._paper_store = PaperStore(config.paper_data.database_path)
+        self._paper_store.initialize()
         self._trial_lock = Lock()
         self._trial_balance_usd = 10000.0
         self._trial_positions: dict[str, int] = {}
@@ -115,6 +146,7 @@ class UIDataService:
             items.append(
                 {
                     "market_id": snapshot.market_id,
+                    "title": snapshot.title,
                     "yes_bid": snapshot.yes_bid,
                     "yes_ask": snapshot.yes_ask,
                     "no_bid": snapshot.no_bid,
@@ -122,6 +154,10 @@ class UIDataService:
                     "volume": snapshot.volume,
                     "snapshot_timestamp": snapshot.timestamp,
                     "spread": spread,
+                    "status": snapshot.status,
+                    "close_time": snapshot.close_time,
+                    "category_hint": snapshot.category_hint,
+                    "liquidity": snapshot.liquidity,
                 }
             )
 
@@ -129,7 +165,10 @@ class UIDataService:
         return {
             "timestamp": utc_now_iso(),
             "freshness_seconds": freshness_seconds(latest_ts),
-            "source": "mock_market_provider",
+            "source": self._market_source,
+            "provider_status": (
+                "credentialed" if self._market_source == "kalshi_read_only" else "mock"
+            ),
             "markets": items,
         }
 
@@ -184,6 +223,15 @@ class UIDataService:
         }
 
     async def paper_metrics(self) -> dict[str, Any]:
+        metrics = self._paper_store.paper_metrics()
+        if metrics["total_trades"] > 0 or metrics["risk_gate_failures"] > 0:
+            return {
+                "timestamp": utc_now_iso(),
+                "freshness_seconds": freshness_seconds(metrics["last_trade_at"]),
+                "source": "paper_store",
+                **metrics,
+            }
+
         replay = _safe_read_json(self._replay_file, {})
         decisions = replay.get("decisions", [])
         wins = 0
@@ -369,6 +417,14 @@ class UIDataService:
         )
         if not execute.get("ok"):
             return execute
+        self._record_durable_paper_bet(
+            decision=decision,
+            market_id=market_id,
+            side=side,
+            contracts=contracts,
+            price=price,
+            bet=execute["bet"],
+        )
         self._trial_traces.insert(0, evaluation["trace"])
         return execute
 
@@ -425,6 +481,14 @@ class UIDataService:
             price=price,
         )
         if result.get("ok"):
+            self._record_durable_paper_bet(
+                decision=decision,
+                market_id=market_id,
+                side=side,
+                contracts=contracts,
+                price=price,
+                bet=result["bet"],
+            )
             self._trial_traces.insert(0, evaluation["trace"])
         return result
 
@@ -568,6 +632,28 @@ class UIDataService:
             self._trial_bets.insert(0, bet)
             balance = round(self._trial_balance_usd, 2)
         return {"ok": True, "bet": bet, "balance_usd": balance}
+
+    def _record_durable_paper_bet(
+        self,
+        decision: Decision,
+        market_id: str,
+        side: str,
+        contracts: int,
+        price: float,
+        bet: dict[str, Any],
+    ) -> None:
+        fill = {
+            "fill_id": bet["bet_id"],
+            "decision_id": decision.decision_id,
+            "market_id": market_id,
+            "side": side,
+            "fill_price": price,
+            "size": contracts * 100,
+            "fees": 0.0,
+            "timestamp": bet["placed_at"],
+            "trace_id": decision.trace_id,
+        }
+        self._paper_store.record_decision_and_fill(decision, fill)
 
     def _evaluate_decision(
         self,

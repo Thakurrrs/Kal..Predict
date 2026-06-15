@@ -120,6 +120,42 @@ class PaperStore:
             ).fetchone()
         return round(float(row[0]), 10)
 
+    def paper_metrics(self) -> dict[str, Any]:
+        """Return durable paper trading metrics for UI reporting."""
+        with self._connect() as connection:
+            fill_row = connection.execute(
+                """
+                SELECT COUNT(*), MAX(timestamp)
+                FROM paper_fills
+                """
+            ).fetchone()
+            outcome_row = connection.execute(
+                """
+                SELECT
+                    COALESCE(SUM(net_pnl), 0),
+                    SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN status = 'lost' THEN 1 ELSE 0 END)
+                FROM outcomes
+                """
+            ).fetchone()
+            risk_row = connection.execute(
+                """
+                SELECT COUNT(*)
+                FROM decisions
+                WHERE json_extract(payload_json, '$.risk_gate_result') = 'FAIL'
+                """
+            ).fetchone()
+
+        return {
+            "paper_pnl": round(float(outcome_row[0]), 2),
+            "wins": int(outcome_row[1] or 0),
+            "losses": int(outcome_row[2] or 0),
+            "total_trades": int(fill_row[0] or 0),
+            "risk_gate_failures": int(risk_row[0] or 0),
+            "last_trade_at": fill_row[1],
+            "unresolved_exposure": round(self.unresolved_exposure(), 2),
+        }
+
     def _record_decision(self, connection: sqlite3.Connection, decision: Decision) -> str:
         cursor = connection.execute(
             """
@@ -175,7 +211,7 @@ class PaperStore:
             "trace_id",
         )
         for field in required:
-            if not fill.get(field):
+            if field not in fill or fill[field] is None or fill[field] == "":
                 raise ValueError(f"missing fill field: {field}")
 
     def _get_fill(self, connection: sqlite3.Connection, fill_id: str) -> dict[str, Any]:
