@@ -3,7 +3,7 @@
 import pytest
 
 from kal_predict.models import MarketSnapshot
-from kal_predict.research.router import MarketCategoryRouter
+from kal_predict.research.router import MarketCategoryRouter, ParserStatus
 
 
 def make_market(title: str, ticker: str = "TEST-MARKET") -> MarketSnapshot:
@@ -48,6 +48,32 @@ class TestMarketCategoryRouter:
         assert result.category == "sports"
         assert result.reason == "known_disabled"
         assert result.enabled_for_paper is False
+        # Broad sports stays observation-only, but soccer is the recognized slice.
+        assert result.subcategory == "soccer"
+        assert result.parser_status == ParserStatus.SUPPORTED
+
+    def test_non_soccer_sports_is_unsupported_slice(self, router: MarketCategoryRouter):
+        result = router.classify(make_market("Will the Lakers win their next NBA game?"))
+
+        assert result.category == "sports"
+        assert result.enabled_for_paper is False
+        assert result.subcategory is None
+        assert result.parser_status == ParserStatus.UNSUPPORTED
+
+    def test_enabled_category_is_supported_status(self, router: MarketCategoryRouter):
+        result = router.classify(make_market("Will CPI inflation be above 3.0% in June?"))
+
+        assert result.parser_status == ParserStatus.SUPPORTED
+
+    def test_ambiguous_market_has_ambiguous_parser_status(self, router: MarketCategoryRouter):
+        result = router.classify(make_market("Will Trump attend the World Cup final?"))
+
+        assert result.parser_status == ParserStatus.AMBIGUOUS
+
+    def test_empty_title_has_unsafe_parser_status(self, router: MarketCategoryRouter):
+        result = router.classify(make_market(""))
+
+        assert result.parser_status == ParserStatus.UNSAFE
 
     def test_classifies_politics_market(self, router: MarketCategoryRouter):
         result = router.classify(make_market("Will the Senate pass the bill?"))

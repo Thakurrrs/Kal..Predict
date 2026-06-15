@@ -95,6 +95,14 @@ Success criteria:
 
 Classify real Kalshi markets into weather, economics, soccer, unsupported, or unsafe.
 
+Implemented taxonomy note (2026-06-15): the router keeps broad observation
+categories (`weather`, `economics`, `sports`, `politics`, `unknown`) so the
+observation logger can count everything seen. "Soccer" is implemented as a
+recognized `subcategory` within the broad `sports` category — it is the enabled
+sports slice for parsing while the rest of sports stays observation-only. Each
+classification now carries a deterministic `parser_status` of `supported`,
+`unsupported`, `ambiguous`, or `unsafe`.
+
 Success criteria:
 
 - Category router produces deterministic category and parser status.

@@ -11,7 +11,7 @@
 ## Snapshot
 - Current phase: **Real-data paper trading Phase 1** (read-only market feed wiring).
 - V1 completion definition: **live Kalshi-integrated automated prediction** (not yet complete).
-- Active market scope: **weather, economics, and soccer planned**; current runtime still falls back to mock market data unless Kalshi credentials are configured.
+- Active market scope: **weather and economics paper-enabled; soccer observed as the enabled slice within broad `sports` (observation-only)**; current runtime still falls back to mock market data unless Kalshi credentials are configured.
 - Forward readiness: interfaces and docs should remain category-ready so weather, economics, soccer, and later model-specific training paths can be onboarded without major refactor.
 - Runtime baseline:
   - Backend API: `http://127.0.0.1:8030`
